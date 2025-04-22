@@ -49,7 +49,9 @@ def parse_instruction(instruction):
                 "opcode": "BB2",
                 "dest": None,
                 "src1": None,
-                "src2": None
+                "src2": None,
+                "memSrc1": None,
+                "memSrc2": None,
             })
             whereToInsert = x["dest"]
             print(whereToInsert)
@@ -58,7 +60,9 @@ def parse_instruction(instruction):
                 "opcode": "BB1",
                 "dest": None,
                 "src1": None,
-                "src2": None
+                "src2": None,
+                "memSrc1": None,
+                "memSrc2": None,
             })
             break
     
@@ -67,7 +71,9 @@ def parse_instruction(instruction):
         "opcode": "BB0",
         "dest": None,
         "src1": None,
-        "src2": None
+        "src2": None,
+        "memSrc1":None,
+        "memSrc2": None,
     })
     
     return decoded_instructions
@@ -81,6 +87,8 @@ def dependency_analysis(parsed):
         dependency_table.append({"instrAddr": parsed[i]["instrAddress"], "localDependency": [], "interloopDep": [], "loopInvarDep" : [],"postLoopDep": []})
     detect_local_dependencies(parsed, dependency_table)
     detect_interlop_dependencies(parsed, dependency_table)
+    detect_loop_invariant_dependencies(parsed, dependency_table)
+    detect_post_loop_dependencies(parsed, dependency_table)
     return dependency_table
 
 def detect_local_dependencies(parsed, dependency_table):
@@ -98,14 +106,13 @@ def detect_local_dependencies(parsed, dependency_table):
             if parsed[j]["instrAddress"] == -1:
                 newBlock = parsed[j]["opcode"]
                 continue
-            if (parsed[j]["dest"] == parsed[i]["src1"] or parsed[j]["dest"] == parsed[i]["src2"]) and currentBlock == newBlock and parsed[j]["dest"] != None:
+            if (parsed[j]["dest"] in get_read_registers(parsed[i]) and parsed[j]["dest"] is not None) and currentBlock == newBlock and parsed[j]["dest"] != None:
                 dependency_table[i]["localDependency"].append(parsed[j]["instrAddress"])
                 
 def detect_interlop_dependencies(parsed, dependency_table):
     """
     Detect interloop in different blocks or iteration.
     """
-    #First we do for different block
     currentBlock = "BB0"
     for i in range(len(parsed)):
         if parsed[i]["instrAddress"] == -1:
@@ -116,26 +123,80 @@ def detect_interlop_dependencies(parsed, dependency_table):
         newBlock = "BB0"
         toAdd1 = -1
         toAdd2 = -1
-        print(f"currentBlock: {currentBlock} instrAddress: {parsed[i]['instrAddress']}")
         for j in range(len(parsed)):
             if parsed[j]["instrAddress"] == -1:
                 newBlock = parsed[j]["opcode"]
                 continue
-            if (parsed[j]["dest"] == parsed[i]["src1"] or parsed[j]["dest"] == parsed[i]["src2"]):
+            if (parsed[j]["dest"] in get_read_registers(parsed[i]) and parsed[j]["dest"] is not None):
                 match newBlock:
                     case "BB0":
                             toAdd1 = parsed[j]["instrAddress"]
                             continue
                     case "BB1":
-                            print(f"BB1: {parsed[j]['instrAddress']} {parsed[i]['instrAddress']}")
                             if (parsed[j]["instrAddress"]>=parsed[i]['instrAddress']):
                                 toAdd2 = parsed[j]["instrAddress"]
                             continue
                     case "BB2":
                         break
-        print(f"toAdd1: {toAdd1} toAdd2: {toAdd2}")
         if toAdd2 != -1:
             dependency_table[i]["interloopDep"].append(toAdd2)
             if toAdd1 != -1:
                 dependency_table[i]["interloopDep"].append(toAdd1)
+
+def detect_loop_invariant_dependencies(parsed, dependency_table):
+    """
+    Detect loop invariant dependencies.
+    """
+    currentBlock = "BB0"
+    for i in range(len(parsed)):
+        if parsed[i]["instrAddress"] == -1:
+            currentBlock = parsed[i]["opcode"]
+            if currentBlock != "BB0":
+                break
+        newBlock = "BB0"
+        toAdd = None
+        for j in range(i+1,len(parsed)):
+            if parsed[j]["instrAddress"] == -1:
+                newBlock = parsed[j]["opcode"]
+                continue
+            if parsed[j]["dest"] == parsed[i]["dest"]:
+                toAdd = None
+                break
+            if (parsed[i]["dest"] in get_read_registers(parsed[j])) and currentBlock == "BB0" and newBlock!="BB0" and parsed[i]["dest"] != None:
+                toAdd = (j,parsed[i]["instrAddress"])
+        
+        if toAdd != None:
+            dependency_table[toAdd[0]]["loopInvarDep"].append(toAdd[1])
+            
+def detect_post_loop_dependencies(parsed, dependency_table):
+    """
+    Detect loop invariant dependencies.
+    """
+    currentBlock = "BB0"
+    indexBB2 = -1
+    for i in range(len(parsed)):
+        if parsed[i]["instrAddress"] == -1:
+            currentBlock = parsed[i]["opcode"]
+            if currentBlock == "BB2":
+                indexBB2 = i
+        if currentBlock != "BB2":
+            continue
+        for j in range(indexBB2):
+            if (parsed[i]["dest"] in get_read_registers(parsed[j])) and parsed[i]["dest"] != None:
+                dependency_table[i]["postLoopDep"].append(parsed[j]["instrAddress"])
+
+
+def get_read_registers(instr):
+    regs = []
+    if instr["opcode"] == "st":
+        # For store, the "dest" is actually a source register containing data to store
+        if instr["dest"] and instr["dest"].startswith("x"): 
+            regs.append(instr["dest"])
     
+    # Always check sources for any registers
+    if instr["src1"] and instr["src1"].startswith("x"): 
+        regs.append(instr["src1"])
+    if instr["src2"] and instr["src2"].startswith("x"): 
+        regs.append(instr["src2"])
+    
+    return set(regs)
