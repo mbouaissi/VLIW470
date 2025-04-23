@@ -44,8 +44,7 @@ def print_schedule(schedule):
         print(f"Cycle {cycle}:")
         for unit in ["ALU", "MULT", "MEM", "BRANCH"]:
             count = bundle[unit]
-            if count > 0:
-                print(f"  {unit:<6}: {count} slot(s)")
+            print(f"  {unit:<6}: {count} slot(s)")
         print(f"  Instructions: {bundle['instrs']}")
     print("===========================\n")
 

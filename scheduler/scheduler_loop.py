@@ -1,102 +1,100 @@
-def simple_loop(dependencyTable, parsedInstruction, nbrAlu = 2, nbrMult = 1, nbrMem = 1, nbrBranch = 1,delay = 1, delayMult  =3):
+def simple_loop(dependencyTable, parsedInstruction, nbrAlu=2, nbrMult=1, nbrMem=1, nbrBranch=1, delay=1, delayMult=3):
     """
-    This function simulates a simple loop scheduler. It takes in a dependency table and parsed instructions,
-    and schedules the instructions based on their dependencies and available resources.
+    Simulates a simple loop scheduler using the 'loop' instruction.
+    Schedules BB0, BB1, and BB2 based on dependencies and resource constraints.
     """
     unit_limit = {
-    "ALU": nbrAlu,
-    "MULT": nbrMult,
-    "MEM": nbrMem,
-    "BRANCH": nbrBranch
-}
+        "ALU": nbrAlu,
+        "MULT": nbrMult,
+        "MEM": nbrMem,
+        "BRANCH": nbrBranch
+    }
+
+    schedule = []
+    scheduleBB1 = []
+    scheduleBB2 = []
+
+    # Detect where BB1 and BB2 start
+    bb1_start = next((i for i, instr in enumerate(parsedInstruction) if instr["opcode"] == "BB1"), None)
+    bb2_start = next((i for i, instr in enumerate(parsedInstruction) if instr["opcode"] == "BB2"), None)
+
+    if bb1_start is None:
+        return []
+
+    # Schedule BB0 (before BB1)
+    schedule += schedule_basic_block(parsedInstruction[:bb1_start], unit_limit)
+
+    # Schedule BB1 (loop body) with dependency-based ASAP
+    scheduleBB1 = schedule_bb1(parsedInstruction[bb1_start+1:bb2_start], dependencyTable, unit_limit, parsedInstruction)
+
+    # Schedule BB2 (after BB1)
+    scheduleBB2 = schedule_basic_block(parsedInstruction[bb2_start+1:], unit_limit) if bb2_start is not None else []
+
+    return schedule + scheduleBB1 + scheduleBB2
 
 
-    II = -1
-    for instruction in parsedInstruction:
-        if instruction["opcode"] == "loop":
-            II = 0
-            break
-    if II == 0:
-        schedule = []
-        startIdx = -1
-        for idx,instr in enumerate(parsedInstruction):
-            if instr["opcode"] == "BB1":
-                startIdx = idx+1
-                break  # skip BBx markers
-                
-            unit = get_unit_type(instr)
-            if unit == "WTF":
-                print("Error: Unknown instruction type")
-                continue
-            # Try to place the instruction in the earliest possible bundle
-            scheduled = False
-            for bundle in schedule:
-                if bundle[unit] < unit_limit[unit]:
-                    bundle[unit] += 1
-                    bundle["instrs"].append(instr["instrAddress"])
-                    scheduled = True
-                    break
+def schedule_basic_block(instructions, unit_limit):
+    schedule = []
+    for instr in instructions:
+        unit = get_unit_type(instr)
+        if unit == "BB":
+            continue
+        
+        placed = False
+        for bundle in schedule:
+            if bundle[unit] < unit_limit[unit]:
+                bundle[unit] += 1
+                bundle["instrs"].append(instr["instrAddress"])
+                placed = True
+                break
 
-            # If it couldn’t be placed, start a new bundle
-            if not scheduled:
+        if not placed:
+            new_bundle = init_bundle()
+            new_bundle[unit] += 1
+            new_bundle["instrs"].append(instr["instrAddress"])
+            schedule.append(new_bundle)
+
+    return schedule
+
+def schedule_bb1(instructions, dependencyTable, unit_limit, full_instr_list):
+    schedule = []
+
+    for local_idx, instr in enumerate(instructions):
+        global_idx = full_instr_list.index(instr)
+        unit = get_unit_type(instr)
+        if unit == "BB":
+            continue
+        elif unit == "BRANCH":
+            bundle = schedule[-1]
+            if bundle[unit] < unit_limit[unit]:
+                bundle[unit] += 1
+                bundle["instrs"].append(instr["instrAddress"])
+            else:
                 new_bundle = init_bundle()
                 new_bundle[unit] += 1
                 new_bundle["instrs"].append(instr["instrAddress"])
                 schedule.append(new_bundle)
-        scheduleBB1  = []
-        scheduleBB2  = []
-        if startIdx != -1:
+            continue
+        min_delay = can_schedule_instruction(schedule, dependencyTable, unit, instr, global_idx, full_instr_list)
+
+        scheduled = False
+        
+        while len(schedule) <= min_delay:
+            schedule.append(init_bundle())
             
-            for idx,instr in enumerate(parsedInstruction[startIdx:]):
-                if instr["opcode"] == "BB2":
-                    startIdx =startIdx+ idx+1
-                    break  # skip BBx markers
-                minDelay = can_schedule_instruction(scheduleBB1, dependencyTable, unit, instr, startIdx+idx, parsedInstruction)
-                unit = get_unit_type(instr)
-                if unit == "WTF":
-                    print("Error: Unknown instruction type")
-                    continue
-                # Try to place the instruction in the earliest possible bundle
-                scheduled = False
-                for bundle in scheduleBB1:
-                    if bundle[unit] < unit_limit[unit] :
-                        
-                        bundle[unit] += 1
-                        bundle["instrs"].append(instr["instrAddress"])
-                        scheduled = True
-                        break
+        scheduled = False
+        for i in range(min_delay, len(schedule)):
+            if schedule[i][unit] < unit_limit[unit]:
+                schedule[i][unit] += 1
+                schedule[i]["instrs"].append(instr["instrAddress"])
+                scheduled = True
+                break
 
-                # If it couldn’t be placed, start a new bundle
-                if not scheduled:
-                    new_bundle = init_bundle()
-                    new_bundle[unit] += 1
-                    new_bundle["instrs"].append(instr["instrAddress"])
-                    scheduleBB1.append(new_bundle)
-            
-            for idx,instr in enumerate(parsedInstruction[startIdx:]):
-                
-                unit = get_unit_type(instr)
-                if unit == "WTF":
-                    print("Error: Unknown instruction type")
-                    continue
-                # Try to place the instruction in the earliest possible bundle
-                scheduled = False
-                for bundle in scheduleBB2:
-                    if bundle[unit] < unit_limit[unit]:
-                        bundle[unit] += 1
-                        bundle["instrs"].append(instr["instrAddress"])
-                        scheduled = True
-                        break
-
-                # If it couldn’t be placed, start a new bundle
-                if not scheduled:
-                    new_bundle = init_bundle()
-                    new_bundle[unit] += 1
-                    new_bundle["instrs"].append(instr["instrAddress"])
-                    scheduleBB2.append(new_bundle)
-                
-        schedule = schedule + scheduleBB1 + scheduleBB2
-
+        if not scheduled:
+            new_bundle = init_bundle()
+            new_bundle[unit] += 1
+            new_bundle["instrs"].append(instr["instrAddress"])
+            schedule.append(new_bundle)
     return schedule
 
 def can_schedule_instruction(schedule, dependencyTable, unit, instr, idx, instructions):
@@ -108,7 +106,6 @@ def can_schedule_instruction(schedule, dependencyTable, unit, instr, idx, instru
     print(f"Checking dependencies for instruction {instr['instrAddress']}: {dependency}")
     
     min_delay = 0
-    
     # Check each type of dependency
     for dep_type in ["localDependency", "loopInvarDep", "postLoopDep", "interloopDep"]:
         for dep in dependency[dep_type]:
@@ -118,7 +115,6 @@ def can_schedule_instruction(schedule, dependencyTable, unit, instr, idx, instru
                     min_delay = max(min_delay, delay)
                     print(f"Dependency {dep} found in cycle {i}")
                     
-
     print(f"Minimum delay for instruction {instr['instrAddress']} is {min_delay}")
     return min_delay
 
@@ -161,7 +157,7 @@ def get_unit_type(instr):
         return "MEM"
     elif instr["opcode"].startswith("loop") or instr["opcode"].startswith("loop.pip"):
         return "BRANCH"
-    return "WTF"
+    return "BB"
 
 
 def init_bundle():
