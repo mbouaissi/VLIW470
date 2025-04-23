@@ -185,8 +185,6 @@ def detect_post_loop_dependencies(parsed, dependency_table):
             currentBlock = parsed[i]["opcode"]
             if currentBlock == "BB2":
                 indexBB2 = i
-            if currentBlock == "BB1":
-                indexBB1 = i
         if currentBlock != "BB2":
             continue
         for j in range(indexBB2):
