@@ -159,10 +159,10 @@ def detect_loop_invariant_dependencies(parsed, dependency_table):
             if parsed[j]["instrAddress"] == -1:
                 newBlock = parsed[j]["opcode"]
                 continue
-            if parsed[j]["dest"] == parsed[i]["dest"]:
+            if parsed[j]["dest"] in get_write_registers(parsed[i]) :
                 toAdd = None
                 break
-            if (parsed[i]["dest"] in get_read_registers(parsed[j])) and currentBlock == "BB0" and newBlock!="BB0" and parsed[i]["dest"] != None:
+            if (get_write_registers(parsed[i]) & get_read_registers(parsed[j])) and currentBlock == "BB0" and newBlock!="BB0" and get_write_registers(parsed[i])!= None:
                 toAdd = (j,parsed[i]["instrAddress"])
         
         if toAdd != None:
@@ -173,17 +173,24 @@ def detect_post_loop_dependencies(parsed, dependency_table):
     Detect loop invariant dependencies.
     """
     currentBlock = "BB0"
+    indexBB1 = -1
     indexBB2 = -1
     for i in range(len(parsed)):
         if parsed[i]["instrAddress"] == -1:
             currentBlock = parsed[i]["opcode"]
             if currentBlock == "BB2":
                 indexBB2 = i
+            if currentBlock == "BB1":
+                indexBB1 = i
         if currentBlock != "BB2":
             continue
-        for j in range(indexBB2):
-            if (parsed[i]["dest"] in get_read_registers(parsed[j])) and parsed[i]["dest"] != None:
-                dependency_table[i]["postLoopDep"].append(parsed[j]["instrAddress"])
+        hasChecked = []
+        for j in range(indexBB2-1, indexBB1-1,-1):
+            if (get_write_registers(parsed[i]) & get_write_registers(parsed[j])) and get_write_registers(parsed[i])!= None:
+                element = get_write_registers(parsed[j]) & get_read_registers(parsed[i])
+                if element not in hasChecked:
+                    hasChecked.append(element)
+                    dependency_table[i]["postLoopDep"].append(parsed[j]["instrAddress"])
 
 
 def get_read_registers(instr):
@@ -198,5 +205,18 @@ def get_read_registers(instr):
         regs.append(instr["src1"])
     if instr["src2"] and instr["src2"].startswith("x"): 
         regs.append(instr["src2"])
+    
+    return set(regs)
+
+def get_write_registers(instr):
+    regs = []
+    if instr["dest"] and instr["dest"].startswith("x"): 
+        regs.append(instr["dest"])
+    if instr["opcode"] == "st":
+        # For store, both dest and src important
+        if instr["src1"] and instr["src1"].startswith("x"): 
+            regs.append(instr["src1"])
+        if instr["src2"] and instr["src2"].startswith("x"): 
+            regs.append(instr["src2"])
     
     return set(regs)
