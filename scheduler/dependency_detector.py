@@ -86,9 +86,11 @@ def dependency_analysis(parsed):
     for i in range(len(parsed)):
         dependency_table.append({"instrAddr": parsed[i]["instrAddress"], "localDependency": [], "interloopDep": [], "loopInvarDep" : [],"postLoopDep": []})
     detect_local_dependencies(parsed, dependency_table)
-    detect_interlop_dependencies(parsed, dependency_table)
+    detect_interloop_dependencies(parsed, dependency_table)
     detect_loop_invariant_dependencies(parsed, dependency_table)
     detect_post_loop_dependencies(parsed, dependency_table)
+    
+    clean_dependencies(dependency_table)
     return dependency_table
 
 def detect_local_dependencies(parsed, dependency_table):
@@ -106,10 +108,10 @@ def detect_local_dependencies(parsed, dependency_table):
             if parsed[j]["instrAddress"] == -1:
                 newBlock = parsed[j]["opcode"]
                 continue
-            if (parsed[j]["dest"] in get_read_registers(parsed[i]) and parsed[j]["dest"] is not None) and currentBlock == newBlock and parsed[j]["dest"] != None:
-                dependency_table[i]["localDependency"].append(parsed[j]["instrAddress"])
+            if (parsed[j]["dest"] in get_consumer_register(parsed[i]) and parsed[j]["dest"] is not None) and currentBlock == newBlock and parsed[j]["dest"] != None:
+                dependency_table[i]["localDependency"].append((parsed[j]["instrAddress"], parsed[j]["dest"]))
                 
-def detect_interlop_dependencies(parsed, dependency_table):
+def detect_interloop_dependencies(parsed, dependency_table):
     """
     Detect interloop in different blocks or iteration.
     """
@@ -123,11 +125,13 @@ def detect_interlop_dependencies(parsed, dependency_table):
         newBlock = "BB0"
         toAdd1 = -1
         toAdd2 = -1
+        dest = -1
         for j in range(len(parsed)):
+            dest = parsed[j]["dest"]
             if parsed[j]["instrAddress"] == -1:
                 newBlock = parsed[j]["opcode"]
                 continue
-            if (parsed[j]["dest"] in get_read_registers(parsed[i]) and parsed[j]["dest"] is not None):
+            if (parsed[j]["dest"] in get_consumer_register(parsed[i]) and parsed[j]["dest"] is not None):
                 match newBlock:
                     case "BB0":
                             toAdd1 = parsed[j]["instrAddress"]
@@ -155,18 +159,19 @@ def detect_loop_invariant_dependencies(parsed, dependency_table):
                 break
         newBlock = "BB0"
         toAdd = None
+        dest = -1
         for j in range(i+1,len(parsed)):
             if parsed[j]["instrAddress"] == -1:
                 newBlock = parsed[j]["opcode"]
                 continue
-            if parsed[j]["dest"] in get_write_registers(parsed[i]) :
+            if parsed[j]["dest"] in get_producer_register(parsed[i]) :
                 toAdd = None
                 break
-            if (get_write_registers(parsed[i]) & get_read_registers(parsed[j])) and currentBlock == "BB0" and newBlock!="BB0" and get_write_registers(parsed[i])!= None:
+            if (get_producer_register(parsed[i]) & get_consumer_register(parsed[j])) and currentBlock == "BB0" and newBlock!="BB0" and get_producer_register(parsed[i])!= None:
                 toAdd = (j,parsed[i]["instrAddress"])
-        
+                dest = parsed[j]["dest"]
         if toAdd != None:
-            dependency_table[toAdd[0]]["loopInvarDep"].append(toAdd[1])
+            dependency_table[toAdd[0]]["loopInvarDep"].append((toAdd[1],dest))
             
 def detect_post_loop_dependencies(parsed, dependency_table):
     """
@@ -184,23 +189,26 @@ def detect_post_loop_dependencies(parsed, dependency_table):
                 indexBB1 = i
         if currentBlock != "BB2":
             continue
-        hasChecked = []
-        for j in range(indexBB2-1, indexBB1-1,-1):
-            if (get_write_registers(parsed[i]) & get_write_registers(parsed[j])) and get_write_registers(parsed[i])!= None:
-                element = get_write_registers(parsed[j]) & get_read_registers(parsed[i])
-                if element not in hasChecked:
-                    hasChecked.append(element)
-                    dependency_table[i]["postLoopDep"].append(parsed[j]["instrAddress"])
+        for j in range(indexBB2):
+            if (get_producer_register(parsed[i]) &  get_consumer_register(parsed[j])) and get_producer_register(parsed[i])!= None:
+                element = get_producer_register(parsed[i]) &  get_consumer_register(parsed[j])
+                for x in element:
+                    dependency_table[i]["postLoopDep"].append((parsed[j]["instrAddress"],x) )
+
+def clean_dependencies(dep_table):
+    for entry in dep_table:
+        for key in ["localDependency",  "loopInvarDep","postLoopDep"]:
+            reg_map = {}  # reg -> latest instr address
+            for instr_addr, reg in entry[key]:
+                if reg not in reg_map or instr_addr > reg_map[reg]:
+                    reg_map[reg] = instr_addr
+            # Keep just the list of latest instruction addresses
+            entry[key] = list(reg_map.values())
 
 
-def get_read_registers(instr):
+def get_consumer_register(instr):
     regs = []
-    if instr["opcode"] == "st":
-        # For store, the "dest" is actually a source register containing data to store
-        if instr["dest"] and instr["dest"].startswith("x"): 
-            regs.append(instr["dest"])
-    
-    # Always check sources for any registers
+
     if instr["src1"] and instr["src1"].startswith("x"): 
         regs.append(instr["src1"])
     if instr["src2"] and instr["src2"].startswith("x"): 
@@ -208,7 +216,7 @@ def get_read_registers(instr):
     
     return set(regs)
 
-def get_write_registers(instr):
+def get_producer_register(instr):
     regs = []
     if instr["dest"] and instr["dest"].startswith("x"): 
         regs.append(instr["dest"])
