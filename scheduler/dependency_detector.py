@@ -43,7 +43,6 @@ def parse_instruction(instruction):
     whereToInsert = -1
     for idx , x in enumerate(decoded_instructions):
         if x["opcode"] == "loop":
-            print("loop detected")
             decoded_instructions.insert(idx+1,{
                 "instrAddress": -1,
                 "opcode": "BB2",
@@ -54,7 +53,6 @@ def parse_instruction(instruction):
                 "memSrc2": None,
             })
             whereToInsert = x["dest"]
-            print(whereToInsert)
             decoded_instructions.insert(int(whereToInsert),{
                 "instrAddress": -1,
                 "opcode": "BB1",
