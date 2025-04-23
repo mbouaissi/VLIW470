@@ -114,9 +114,9 @@ def can_schedule_instruction(schedule, dependencyTable, unit, instr, idx, instru
         for dep in dependency[dep_type]:
             for i in range(len(schedule)):
                 if dep in schedule[i]["instrs"]:
-                    delay = compute_delay(i, instructions[dep])  # pass instr directly
+                    delay = compute_delay(i, get_instruction_with_id(instructions,dep))  # pass instr directly
                     min_delay = max(min_delay, delay)
-                print(f"Dependency {dep} found in cycle {i}, delay: {delay}")
+                    print(f"Dependency {dep} found in cycle {i}")
                     
 
     print(f"Minimum delay for instruction {instr['instrAddress']} is {min_delay}")
@@ -126,6 +126,7 @@ def compute_delay(scheduled_cycle, instr):
     """
     Returns the cycle when the result of an instruction is available.
     """
+    print(f"Computing delay for instruction {instr} at cycle {scheduled_cycle}")
     unit = get_unit_type(instr)
     latency = 3 if unit == "MULT" else 1
     return scheduled_cycle + latency
@@ -141,7 +142,16 @@ def add_instruction_to_schedule(schedule, instruction, index):
 def ensure_bundle_exists(schedule, index):
     while len(schedule) <= index:
         schedule.append([])
-        
+
+def get_instruction_with_id(parsed_instruction, instr_id):
+    """
+    Returns the instruction with the specified ID from the parsed instructions.
+    """
+    for instr in parsed_instruction:
+        if instr["instrAddress"] == instr_id:
+            return instr
+    return None
+
 def get_unit_type(instr):
     if instr["opcode"] in ["add", "addi", "sub", "mov"]:
         return "ALU"
