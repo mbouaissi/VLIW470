@@ -106,6 +106,7 @@ def detect_local_dependencies(parsed, dependency_table):
             if parsed[j]["instrAddress"] == -1:
                 newBlock = parsed[j]["opcode"]
                 continue
+            
             if (parsed[j]["dest"] in get_consumer_register(parsed[i]) and parsed[j]["dest"] is not None) and currentBlock == newBlock and parsed[j]["dest"] != None:
                 dependency_table[i]["localDependency"].append((parsed[j]["instrAddress"], parsed[j]["dest"]))
                 
@@ -205,6 +206,8 @@ def clean_dependencies(dep_table):
 def get_consumer_register(instr):
     regs = []
 
+    if instr["opcode"] == "st" and  instr["dest"] and instr["dest"].startswith("x"): 
+        regs.append(instr["dest"])
     if instr["src1"] and instr["src1"].startswith("x"): 
         regs.append(instr["src1"])
     if instr["src2"] and instr["src2"].startswith("x"): 

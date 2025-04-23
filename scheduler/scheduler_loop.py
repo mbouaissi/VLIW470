@@ -21,7 +21,7 @@ def simple_loop(dependencyTable, parsedInstruction, nbrAlu = 2, nbrMult = 1, nbr
         startIdx = -1
         for idx,instr in enumerate(parsedInstruction):
             if instr["opcode"] == "BB1":
-                startIdx = idx
+                startIdx = idx+1
                 break  # skip BBx markers
                 
             unit = get_unit_type(instr)
@@ -49,9 +49,9 @@ def simple_loop(dependencyTable, parsedInstruction, nbrAlu = 2, nbrMult = 1, nbr
             
             for idx,instr in enumerate(parsedInstruction[startIdx:]):
                 if instr["opcode"] == "BB2":
-                    startIdx =startIdx+ idx
+                    startIdx =startIdx+ idx+1
                     break  # skip BBx markers
-                
+                minDelay = can_schedule_instruction(scheduleBB1, dependencyTable, unit, instr, startIdx+idx, parsedInstruction)
                 unit = get_unit_type(instr)
                 if unit == "WTF":
                     print("Error: Unknown instruction type")
@@ -60,7 +60,7 @@ def simple_loop(dependencyTable, parsedInstruction, nbrAlu = 2, nbrMult = 1, nbr
                 scheduled = False
                 for bundle in scheduleBB1:
                     if bundle[unit] < unit_limit[unit] :
-                        can_schedule_instruction(scheduleBB1, dependencyTable, unit, instr)
+                        
                         bundle[unit] += 1
                         bundle["instrs"].append(instr["instrAddress"])
                         scheduled = True
@@ -68,7 +68,6 @@ def simple_loop(dependencyTable, parsedInstruction, nbrAlu = 2, nbrMult = 1, nbr
 
                 # If it couldn’t be placed, start a new bundle
                 if not scheduled:
-                    can_schedule_instruction(scheduleBB1, dependencyTable, unit, instr)
                     new_bundle = init_bundle()
                     new_bundle[unit] += 1
                     new_bundle["instrs"].append(instr["instrAddress"])
@@ -100,12 +99,37 @@ def simple_loop(dependencyTable, parsedInstruction, nbrAlu = 2, nbrMult = 1, nbr
 
     return schedule
 
-def can_schedule_instruction(schedule, dependencyTable, unit, instr):
+def can_schedule_instruction(schedule, dependencyTable, unit, instr, idx, instructions):
     """
-    Checks if an instruction can be scheduled at the specified index in the schedule.
+    Computes the earliest cycle an instruction can be scheduled at,
+    based on its dependencies and instruction latency.
     """
-    dependency = dependencyTable[instr["instrAddress"]]
+    dependency = dependencyTable[idx]
     print(f"Checking dependencies for instruction {instr['instrAddress']}: {dependency}")
+    
+    min_delay = 0
+    
+    # Check each type of dependency
+    for dep_type in ["localDependency", "loopInvarDep", "postLoopDep", "interloopDep"]:
+        for dep in dependency[dep_type]:
+            for i in range(len(schedule)):
+                if dep in schedule[i]["instrs"]:
+                    delay = compute_delay(i, instructions[dep])  # pass instr directly
+                    min_delay = max(min_delay, delay)
+                print(f"Dependency {dep} found in cycle {i}, delay: {delay}")
+                    
+
+    print(f"Minimum delay for instruction {instr['instrAddress']} is {min_delay}")
+    return min_delay
+
+def compute_delay(scheduled_cycle, instr):
+    """
+    Returns the cycle when the result of an instruction is available.
+    """
+    unit = get_unit_type(instr)
+    latency = 3 if unit == "MULT" else 1
+    return scheduled_cycle + latency
+
 
 def add_instruction_to_schedule(schedule, instruction, index):
     """
