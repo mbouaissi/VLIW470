@@ -68,6 +68,7 @@ def simple_loop(dependencyTable, parsedInstruction, nbrAlu = 2, nbrMult = 1, nbr
 
                 # If it couldn’t be placed, start a new bundle
                 if not scheduled:
+                    can_schedule_instruction(scheduleBB1, dependencyTable, unit, instr)
                     new_bundle = init_bundle()
                     new_bundle[unit] += 1
                     new_bundle["instrs"].append(instr["instrAddress"])
