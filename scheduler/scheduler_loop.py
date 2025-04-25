@@ -30,25 +30,48 @@ def simple_loop(dependencyTable, parsedInstruction, nbrAlu=2, nbrMult=1, nbrMem=
             
     scheduleBB2 = schedule_basic_block(parsedInstruction[bb2_start+1:], dependencyTable,unit_limit,parsedInstruction) if bb2_start is not None else []
 
+    # Schedule BB2
+    add_delay_BB2_dependency( scheduleBB1,scheduleBB2, dependencyTable, parsedInstruction)
     return schedule + scheduleBB1 + scheduleBB2
 
-def add_delay_BB0_dependency(schedule, scheduleBB1, dependencyTable, parsedInstruction):
+def add_delay_BB0_dependency(scheduleBB0, scheduleBB1, dependencyTable, parsedInstruction):
     for idxBB1, instrBB1 in enumerate(scheduleBB1):
         for instBB1 in instrBB1["instrs"]:
             for dep_type in ["loopInvarDep", "interloopDep"]:
                 for dep in get_instruction_with_id(dependencyTable,instBB1)[dep_type]:                  
                     # Check if the dependency is in BB0
-                    for idxBB0, instrBB0 in enumerate(schedule):
+                    for idxBB0, instrBB0 in enumerate(scheduleBB0):
                         for instBB0 in instrBB0["instrs"]:
                             if dep == instBB0:
                                 instructionBB0 = get_instruction_with_id(parsedInstruction,instBB0)
                                 delay = compute_delay(0, instructionBB0)
                                 
-                                while delay>compute_relative_distance(idxBB0, idxBB1, schedule):
+                                while delay>compute_relative_distance(idxBB0, idxBB1, scheduleBB0):
                                     new_bundle = init_bundle()
-                                    schedule.append(new_bundle)
+                                    scheduleBB0.append(new_bundle)
 
 
+def add_delay_BB2_dependency( scheduleBB1,scheduleBB2, dependencyTable, parsedInstruction):
+    print("Checking dependencies for BB2")
+    for idxBB2, instrBB2 in enumerate(scheduleBB2):
+        for instBB2 in instrBB2["instrs"]:
+            for dep_type in ["postLoopDep"]:
+                for dep in get_instruction_with_id(dependencyTable,instBB2)[dep_type]:                  
+                    # Check if the dependency is in BB2
+                    print(f"Checking dependencies for instruction {instBB2}: {dep}")
+                    for idxBB1, instrBB1 in enumerate(scheduleBB1):
+                        for instBB1 in instrBB1["instrs"]:
+                            if dep == instBB1:
+                                instructionBB1 = get_instruction_with_id(parsedInstruction,instBB1)
+                                delay = compute_delay(0, instructionBB1)
+                                print(f"Delay for instruction {instBB1}: {delay}")
+                                print(f"Relative distance between BB1 and BB2: {compute_relative_distance(idxBB1, idxBB2, scheduleBB1)}")
+                                while delay>compute_relative_distance(idxBB1, idxBB2, scheduleBB1):
+                                    new_bundle = init_bundle()
+                                    scheduleBB2.insert(0,new_bundle)
+                                    idxBB2 += 1
+                                    
+                                    
 def compute_relative_distance(idxBB0, idxBB1, scheduleBB0):
     dist0 = len(scheduleBB0) - idxBB0
     dist1 =  idxBB1
