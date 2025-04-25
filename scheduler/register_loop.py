@@ -23,8 +23,8 @@ def register_loop(schedule,parsedInstruction, dependencyTable):
                     print(f'Checking instr @ {instr["instrAddress"]}: dest={instr["dest"]}, src1={instr["src1"]}, src2={instr["src2"]}')
 
                     loop_dep[new_reg].append(instr["src2"])
-                
-                reg_transform[instr["dest"]] = new_reg
+                if reg_transform.get(instr["dest"])is None:
+                    reg_transform[instr["dest"]] = new_reg
                 instr["dest"] = new_reg
                 
                 start_index += 1
@@ -34,6 +34,28 @@ def register_loop(schedule,parsedInstruction, dependencyTable):
             print("loop_dep", l)
             l["src1"] = reg_transform.get(l["src1"]) if l["src1"] is not None and l["src1"].startswith("x") else l["src1"]
             l["src2"] = reg_transform.get(l["src2"])if l["src2"] is not None and l["src2"].startswith("x") else l["src2"]
+            if l["memSrc1"] is not None:
+                start = l["memSrc1"].find('(')
+                end = l["memSrc1"].find(')')
+                if start != -1 and end != -1:
+                    reg_in_mem = l["memSrc1"][start+1:end]
+                    renamed_reg = reg_transform.get(reg_in_mem)
+                    if renamed_reg:
+                        l["memSrc1"] = l["memSrc1"].replace(reg_in_mem, renamed_reg)
+            # if l["instrAddress"] < instr["instrAddress"]:
+            if l["memSrc2"] is not None:
+                start = l["memSrc2"].find('(')
+                end = l["memSrc2"].find(')')
+                if start != -1 and end != -1:
+                    reg_in_mem = l["memSrc2"][start+1:end]
+                    renamed_reg = reg_transform.get(reg_in_mem)
+                    if renamed_reg:
+                        l["memSrc2"] = l["memSrc2"].replace(reg_in_mem, renamed_reg)
+                            
+                # print("found in memSrc1", l["memSrc1"])
+                # print("replace", old_reg, instr["dest"])
+                        
+                # l["memSrc1"] = l["memSrc1"].replace(old_reg, instr["dest"])
         #     if l["instrAddress"] > instr["instrAddress"]:
         #         if l["src1"] == old_reg:
         #             l["src1"] = instr["dest"]
@@ -47,6 +69,7 @@ def register_loop(schedule,parsedInstruction, dependencyTable):
         #                 l["memSrc1"] = l["memSrc1"].replace(old_reg, instr["dest"])
               
     print("Loop-carried deps map:", loop_dep)     
+    print(schedule)
     # for idx,i in enumerate(schedule):
     #     toChange = None
     #     for j in i:
