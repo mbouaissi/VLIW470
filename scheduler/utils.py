@@ -75,6 +75,7 @@ def format_instructions_schedule(schedule):
     return formatted_schedule
 
 
+
 def sort_instructions_by_unit(schedule):
     def get_unit_priority(opcode):
         if opcode in ['mov', 'addi']:
