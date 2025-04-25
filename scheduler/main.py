@@ -42,10 +42,14 @@ def main():
     
     loopRegister = register_loop(loopScheduler, parsedInstruction, dependencyTable)
     
+    (parsedInstruction, dependencyTable) = detector(loopRegister, needToParse=False)   
+    loopScheduler = simple_loop(dependencyTable, parsedInstruction)    
     if debug_mode:
-        result = format_instructions_schedule(loopRegister)
-        for line in result:
-            print(line)
+            print_schedule(loopScheduler)
+    # if debug_mode:
+    #     result = format_instructions_schedule(loopRegister)
+    #     for line in result:
+    #         print(line)
     
 
 

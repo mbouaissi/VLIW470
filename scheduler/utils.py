@@ -108,6 +108,12 @@ def get_unit_type(instr):
         return "BRANCH"
     return "BB"
 
+def shift_instr_addresses(schedule, from_instr_address, shift_by):
+    for bundle in schedule:
+        for instr in bundle:
+            if instr["instrAddress"] is not None and instr["instrAddress"] >= from_instr_address:
+                instr["instrAddress"] += shift_by
+                
 
 def init_bundle():
     return {
@@ -116,4 +122,11 @@ def init_bundle():
         "MEM": 0,
         "BRANCH": 0,
         "instrs": []
+    }
+
+unit_limit = {
+        "ALU": 2,
+        "MULT": 1,
+        "MEM": 1,
+        "BRANCH": 1
     }

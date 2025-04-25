@@ -1,16 +1,11 @@
-from utils import init_bundle, get_unit_type, get_instruction_with_id
+from utils import init_bundle, get_unit_type, get_instruction_with_id, unit_limit
 
-def simple_loop(dependencyTable, parsedInstruction, nbrAlu=2, nbrMult=1, nbrMem=1, nbrBranch=1, delay=1, delayMult=3):
+def simple_loop(dependencyTable, parsedInstruction):
     """
     Simulates a simple loop scheduler using the 'loop' instruction.
     Schedules BB0, BB1, and BB2 based on dependencies and resource constraints.
     """
-    unit_limit = {
-        "ALU": nbrAlu,
-        "MULT": nbrMult,
-        "MEM": nbrMem,
-        "BRANCH": nbrBranch
-    }
+    
 
     schedule = []
     scheduleBB1 = []

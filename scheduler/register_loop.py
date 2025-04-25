@@ -1,7 +1,7 @@
-from utils import get_instruction_with_id, get_unit_type, init_bundle, sort_instructions_by_unit
+from utils import get_instruction_with_id, get_unit_type, init_bundle, sort_instructions_by_unit, unit_limit
 
 
-def register_loop(schedule,parsedInstruction, dependencyTable):
+def register_loop(schedule,parsedInstruction, dependencyTable,):
     
     schedule = convert_back_to_register(schedule, parsedInstruction)
     schedule = sort_instructions_by_unit(schedule)
@@ -16,93 +16,126 @@ def register_loop(schedule,parsedInstruction, dependencyTable):
                 new_reg = f"x{start_index}"
                 loop_dep.setdefault(new_reg, [])
                 if instr["dest"] == instr["src1"]:
-                    print(f'Checking instr @ {instr["instrAddress"]}: dest={instr["dest"]}, src1={instr["src1"]}, src2={instr["src2"]}')
-
                     loop_dep[new_reg].append(instr["src1"])
                 if instr["dest"] == instr["src2"]:
-                    print(f'Checking instr @ {instr["instrAddress"]}: dest={instr["dest"]}, src1={instr["src1"]}, src2={instr["src2"]}')
-
                     loop_dep[new_reg].append(instr["src2"])
                 if reg_transform.get(instr["dest"])is None:
                     reg_transform[instr["dest"]] = new_reg
                 instr["dest"] = new_reg
                 
                 start_index += 1
-    
     for k in schedule:  
         for l in k:
-            print("loop_dep", l)
-            l["src1"] = reg_transform.get(l["src1"]) if l["src1"] is not None and l["src1"].startswith("x") else l["src1"]
-            l["src2"] = reg_transform.get(l["src2"])if l["src2"] is not None and l["src2"].startswith("x") else l["src2"]
+            dest = l["dest"]
+            # src1
+            if l["src1"] is not None and l["src1"].startswith("x"):
+                old = l["src1"]
+                new = reg_transform.get(old)
+                if new and old != new:
+                    l["src1"] = new
+                    update_loop_dep_dict(loop_dep, old, new,dest)
+                    # if loop_dep.get(new) is not None:
+                    #     loop_dep[new] = []
+
+            # src2
+            if l["src2"] is not None and l["src2"].startswith("x"):
+                old = l["src2"]
+                new = reg_transform.get(old)
+                if new and old != new:
+                    l["src2"] = new
+                    update_loop_dep_dict(loop_dep, old, new,dest)
+                    # loop_dep.setdefault(new, []).append(old)
+
+            # memSrc1
             if l["memSrc1"] is not None:
                 start = l["memSrc1"].find('(')
                 end = l["memSrc1"].find(')')
                 if start != -1 and end != -1:
                     reg_in_mem = l["memSrc1"][start+1:end]
-                    renamed_reg = reg_transform.get(reg_in_mem)
-                    if renamed_reg:
-                        l["memSrc1"] = l["memSrc1"].replace(reg_in_mem, renamed_reg)
-            # if l["instrAddress"] < instr["instrAddress"]:
+                    renamed = reg_transform.get(reg_in_mem)
+                    if renamed and renamed != reg_in_mem:
+                        l["memSrc1"] = l["memSrc1"].replace(reg_in_mem, renamed)
+                        update_loop_dep_dict(loop_dep, reg_in_mem,renamed,dest)
+                        # loop_dep.setdefault(renamed, []).append(reg_in_mem)
+
+            # memSrc2
             if l["memSrc2"] is not None:
                 start = l["memSrc2"].find('(')
                 end = l["memSrc2"].find(')')
                 if start != -1 and end != -1:
                     reg_in_mem = l["memSrc2"][start+1:end]
-                    renamed_reg = reg_transform.get(reg_in_mem)
-                    if renamed_reg:
-                        l["memSrc2"] = l["memSrc2"].replace(reg_in_mem, renamed_reg)
-                            
-                # print("found in memSrc1", l["memSrc1"])
-                # print("replace", old_reg, instr["dest"])
+                    renamed = reg_transform.get(reg_in_mem)
+                    if renamed and renamed != reg_in_mem:
+                        l["memSrc2"] = l["memSrc2"].replace(reg_in_mem, renamed)
                         
-                # l["memSrc1"] = l["memSrc1"].replace(old_reg, instr["dest"])
-        #     if l["instrAddress"] > instr["instrAddress"]:
-        #         if l["src1"] == old_reg:
-        #             l["src1"] = instr["dest"]
-        #         if l["src2"] == old_reg:
-        #             l["src2"] = instr["dest"]
-        #         if  l["memSrc1"] is not None :
-        #             if old_reg in l["memSrc1"]:
-        #                 print("found in memSrc1", l["memSrc1"])
-        #                 print("replace", old_reg, instr["dest"])
+                        update_loop_dep_dict(loop_dep, reg_in_mem,renamed,dest)    
+                        # loop_dep.setdefault(renamed, []).append(reg_in_mem)
+     
+    loop_bundle_idx = next(
+        (i for i, bundle in enumerate(schedule) for instr in bundle if instr["opcode"] == "loop"),
+        None
+    )
+    
+    for i in range(len(schedule)):
+        schedule[i] = [instr for instr in schedule[i] if instr["instrAddress"] != -1]
+    schedule = [bundle for bundle in schedule if len(bundle) > 0]   
+    # Step: Insert movs before loop for loop-carried dependencies
+    interloop_movs = []
+
+    index_to_insert = 0#because of the bb in schedule lol
+    for (renamed_reg, original_regs) in(loop_dep.items()):
+        for orig in original_regs:
+            if orig != renamed_reg:
+                index_to_insert += 1
+                mov_instr = {
+                    "instrAddress": loop_bundle_idx + index_to_insert + 2,#+2 to take in account the BB
+                    "opcode": "mov",
+                    "dest": orig,       
+                    "src1": renamed_reg, 
+                    "src2": None,
+                    "memSrc1": None,
+                    "memSrc2": None,
+                }
+                interloop_movs.append(mov_instr)
+    
+    #parsedInstruction = [instr for instr in parsedInstruction if instr["instrAddress"] != -1]
+    #parsedInstruction.sort(key=lambda instr: instr["instrAddress"])
+    insert_movs_before_loop(parsedInstruction, interloop_movs)
+
                         
-        #                 l["memSrc1"] = l["memSrc1"].replace(old_reg, instr["dest"])
-              
-    print("Loop-carried deps map:", loop_dep)     
-    print(schedule)
-    # for idx,i in enumerate(schedule):
-    #     toChange = None
-    #     for j in i:
-    #         if j["opcode"] != "st":
-    #             if j["dest"].startswith("x"):
-    #                 toChange = j["dest"]
-    #                 j["dest"] = "x"+str(start_index)
-    #                 start_index += 1
-    #         if toChange is None:
-    #             continue
-    #         for k in schedule[idx+1:]:
-    #             for l in k:
-    #                 if l["instrAddress"] > j["instrAddress"]:
-    #                     if l["src1"] == toChange:
-    #                         l["src1"] = j["dest"]
-    #                     if l["src2"] == toChange:
-    #                         l["src2"] = j["dest"]
-    #                     if  l["memSrc1"] is not None :
-    #                         if toChange in l["memSrc1"]:
-    #                             l["memSrc1"] = l["memSrc1"].replace(toChange, j["dest"])
-                            
-    # print(schedule)
-    # for instr in dependencyTable:
-    #     print(instr["instrAddress"], instr["interloopDep"])
-    #     for indexDep in instr["interloopDep"]:
-    #         print("indexDep", indexDep)
-    #         for bundle in schedule:
-    #             for instr in bundle:
-    #                 if instr["instrAddress"] == indexDep:
-    #                     print("foudnf for  ", instr["instrAddress"])
-                        
-                        
-    return schedule
+    return parsedInstruction
+def insert_movs_before_loop(parsedInstruction, interloop_movs):
+    # Step 1: Find index of the first 'loop' instruction (excluding BBs)
+    loop_index = next(
+        i for i, instr in enumerate(parsedInstruction)
+        if instr["opcode"] == "loop" and instr["instrAddress"] != -1
+    )
+
+    shift_amount = len(interloop_movs)
+
+    # Step 2: Shift only real instructions (ignore BBx with instrAddress == -1)
+    for i in range(loop_index, len(parsedInstruction)):
+        if parsedInstruction[i]["instrAddress"] != -1:
+            parsedInstruction[i]["instrAddress"] += shift_amount
+
+    # Step 3: Assign instrAddress to interloop_movs (based on loop's current addr - shift)
+    base_addr = parsedInstruction[loop_index]["instrAddress"] - shift_amount
+    for offset, mov in enumerate(interloop_movs):
+        mov["instrAddress"] = base_addr + offset
+
+    # Step 4: Find safe insertion point **before** loop and **after last non-BB**
+    # We walk back from loop_index to find where to place the movs
+    insert_index = loop_index
+    while insert_index > 0 and parsedInstruction[insert_index - 1]["instrAddress"] == -1:
+        insert_index -= 1
+
+    # Step 5: Insert the mov instructions
+    parsedInstruction[insert_index:insert_index] = interloop_movs
+
+
+def update_loop_dep_dict(loop_dep, old, new, key):
+    value = loop_dep.get(key)
+    loop_dep[key] = [new if v == old else v for v in value]
 
 def convert_back_to_register(schedule, parsedInstruction):
     """

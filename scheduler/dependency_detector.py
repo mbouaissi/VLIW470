@@ -1,9 +1,13 @@
 import re
 
 from utils import parse_mem_operand
-def detector(instruction):
-    parsed_instruction = parse_instruction(instruction)
-    
+def detector(instruction, needToParse = True):
+    parsed_instruction = instruction
+    if  needToParse:
+        parsed_instruction = parse_instruction(instruction)
+    print("\n=== Parsed Instructions ===")
+    for i in parsed_instruction:    
+        print(i)
     
     dependency_analysis_result = dependency_analysis(parsed_instruction)
     return (parsed_instruction,dependency_analysis_result)
