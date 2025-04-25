@@ -82,7 +82,7 @@ def dependency_analysis(parsed):
     """
     dependency_table = []
     for i in range(len(parsed)):
-        dependency_table.append({"instrAddr": parsed[i]["instrAddress"], "localDependency": [], "interloopDep": [], "loopInvarDep" : [],"postLoopDep": []})
+        dependency_table.append({"instrAddress": parsed[i]["instrAddress"], "localDependency": [], "interloopDep": [], "loopInvarDep" : [],"postLoopDep": []})
     detect_local_dependencies(parsed, dependency_table)
     detect_interloop_dependencies(parsed, dependency_table)
     detect_loop_invariant_dependencies(parsed, dependency_table)
