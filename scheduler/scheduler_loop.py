@@ -1,3 +1,5 @@
+from utils import init_bundle, get_unit_type, get_instruction_with_id
+
 def simple_loop(dependencyTable, parsedInstruction, nbrAlu=2, nbrMult=1, nbrMem=1, nbrBranch=1, delay=1, delayMult=3):
     """
     Simulates a simple loop scheduler using the 'loop' instruction.
@@ -32,6 +34,7 @@ def simple_loop(dependencyTable, parsedInstruction, nbrAlu=2, nbrMult=1, nbrMem=
 
     # Schedule BB2
     add_delay_BB2_dependency( scheduleBB1,scheduleBB2, dependencyTable, parsedInstruction)
+    
     return schedule + scheduleBB1 + scheduleBB2
 
 def add_delay_BB0_dependency(scheduleBB0, scheduleBB1, dependencyTable, parsedInstruction):
@@ -52,20 +55,19 @@ def add_delay_BB0_dependency(scheduleBB0, scheduleBB1, dependencyTable, parsedIn
 
 
 def add_delay_BB2_dependency( scheduleBB1,scheduleBB2, dependencyTable, parsedInstruction):
-    print("Checking dependencies for BB2")
+    # Check if the dependency is in BB2
     for idxBB2, instrBB2 in enumerate(scheduleBB2):
         for instBB2 in instrBB2["instrs"]:
             for dep_type in ["postLoopDep"]:
-                for dep in get_instruction_with_id(dependencyTable,instBB2)[dep_type]:                  
-                    # Check if the dependency is in BB2
-                    print(f"Checking dependencies for instruction {instBB2}: {dep}")
+                for dep in get_instruction_with_id(dependencyTable,instBB2)[dep_type]:   
+                    #If there is, we check which instruction in BB1 is dependent on it
+                                   
                     for idxBB1, instrBB1 in enumerate(scheduleBB1):
                         for instBB1 in instrBB1["instrs"]:
                             if dep == instBB1:
                                 instructionBB1 = get_instruction_with_id(parsedInstruction,instBB1)
                                 delay = compute_delay(0, instructionBB1)
-                                print(f"Delay for instruction {instBB1}: {delay}")
-                                print(f"Relative distance between BB1 and BB2: {compute_relative_distance(idxBB1, idxBB2, scheduleBB1)}")
+                                #Then we adjust the bubbles accrordingly
                                 while delay>compute_relative_distance(idxBB1, idxBB2, scheduleBB1):
                                     new_bundle = init_bundle()
                                     scheduleBB2.insert(0,new_bundle)
@@ -75,7 +77,6 @@ def add_delay_BB2_dependency( scheduleBB1,scheduleBB2, dependencyTable, parsedIn
 def compute_relative_distance(idxBB0, idxBB1, scheduleBB0):
     dist0 = len(scheduleBB0) - idxBB0
     dist1 =  idxBB1
-    print(f"Distance between BB0 and BB1: {dist0} + {dist1}")
     
     return dist0 + dist1
 
@@ -182,33 +183,4 @@ def compute_delay(scheduled_cycle, instr):
     return scheduled_cycle + latency
 
 
-def get_instruction_with_id(parsed_instruction, instr_id):
-    """
-    Returns the instruction with the specified ID from the parsed instructions.
-    """
-    for instr in parsed_instruction:
-        if instr["instrAddress"] == instr_id:
-            return instr
-    return None
-
-def get_unit_type(instr):
-    if instr["opcode"] in ["add", "addi", "sub", "mov"]:
-        return "ALU"
-    elif instr["opcode"] == "mulu":
-        return "MULT"
-    elif instr["opcode"] in ["ld", "st"]:
-        return "MEM"
-    elif instr["opcode"].startswith("loop") or instr["opcode"].startswith("loop.pip"):
-        return "BRANCH"
-    return "BB"
-
-
-def init_bundle():
-    return {
-        "ALU": 0,
-        "MULT": 0,
-        "MEM": 0,
-        "BRANCH": 0,
-        "instrs": []
-    }
 

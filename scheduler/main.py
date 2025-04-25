@@ -2,7 +2,9 @@ import sys
 import json
 from dependency_detector import detector
 from scheduler_loop import simple_loop
+from register_loop import register_loop
 
+from utils import print_schedule, format_instructions_schedule
 def main():
     args = sys.argv[1:]
 
@@ -35,18 +37,16 @@ def main():
         for x in dependencyTable:
             print(x)
     loopScheduler = simple_loop(dependencyTable, parsedInstruction)    
-    
     if debug_mode:
         print_schedule(loopScheduler)
-def print_schedule(schedule):
-    print("\n=== Simple Loop Schedule ===")
-    for cycle, bundle in enumerate(schedule):
-        print(f"Cycle {cycle}:")
-        for unit in ["ALU", "MULT", "MEM", "BRANCH"]:
-            count = bundle[unit]
-            print(f"  {unit:<6}: {count} slot(s)")
-        print(f"  Instructions: {bundle['instrs']}")
-    print("===========================\n")
+    
+    loopRegister = register_loop(loopScheduler, parsedInstruction, dependencyTable)
+    
+    if debug_mode:
+        result = format_instructions_schedule(loopRegister)
+        for line in result:
+            print(line)
+    
 
 
 if __name__ == "__main__":
