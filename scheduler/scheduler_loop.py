@@ -1,4 +1,4 @@
-from utils import init_bundle, get_unit_type, get_instruction_with_id, unit_limit
+from utils import init_bundle, get_unit_type, get_instruction_with_id, unit_limit, compute_delay
 
 def simple_loop(dependencyTable, parsedInstruction):
     """
@@ -25,7 +25,7 @@ def simple_loop(dependencyTable, parsedInstruction):
 
     add_delay_BB0_dependency(schedule, scheduleBB1, dependencyTable, parsedInstruction)
             
-    scheduleBB2 = schedule_basic_block(parsedInstruction[bb2_start+1:], dependencyTable,unit_limit,parsedInstruction) if bb2_start is not None else []
+    scheduleBB2 = schedule_basic_block(parsedInstruction[bb2_start+1:], dependencyTable,unit_limit,parsedInstruction) if bb2_start  else []
 
     # Schedule BB2
     add_delay_BB2_dependency( scheduleBB1,scheduleBB2, dependencyTable, parsedInstruction)
@@ -34,12 +34,12 @@ def simple_loop(dependencyTable, parsedInstruction):
 
 def add_delay_BB0_dependency(scheduleBB0, scheduleBB1, dependencyTable, parsedInstruction):
     for idxBB1, instrBB1 in enumerate(scheduleBB1):
-        for instBB1 in instrBB1["instrs"]:
+        for instBB1 in instrBB1["instructions"]:
             for dep_type in ["loopInvarDep", "interloopDep"]:
                 for dep in get_instruction_with_id(dependencyTable,instBB1)[dep_type]:                  
                     # Check if the dependency is in BB0
                     for idxBB0, instrBB0 in enumerate(scheduleBB0):
-                        for instBB0 in instrBB0["instrs"]:
+                        for instBB0 in instrBB0["instructions"]:
                             if dep == instBB0:
                                 instructionBB0 = get_instruction_with_id(parsedInstruction,instBB0)
                                 delay = compute_delay(0, instructionBB0)
@@ -52,13 +52,13 @@ def add_delay_BB0_dependency(scheduleBB0, scheduleBB1, dependencyTable, parsedIn
 def add_delay_BB2_dependency( scheduleBB1,scheduleBB2, dependencyTable, parsedInstruction):
     # Check if the dependency is in BB2
     for idxBB2, instrBB2 in enumerate(scheduleBB2):
-        for instBB2 in instrBB2["instrs"]:
+        for instBB2 in instrBB2["instructions"]:
             for dep_type in ["postLoopDep"]:
                 for dep in get_instruction_with_id(dependencyTable,instBB2)[dep_type]:   
                     #If there is, we check which instruction in BB1 is dependent on it
                                    
                     for idxBB1, instrBB1 in enumerate(scheduleBB1):
-                        for instBB1 in instrBB1["instrs"]:
+                        for instBB1 in instrBB1["instructions"]:
                             if dep == instBB1:
                                 instructionBB1 = get_instruction_with_id(parsedInstruction,instBB1)
                                 delay = compute_delay(0, instructionBB1)
@@ -94,14 +94,14 @@ def schedule_basic_block(instructions, dependencyTable, unit_limit, full_instr_l
         for i in range(min_delay, len(schedule)):
             if schedule[i][unit] < unit_limit[unit]:
                 schedule[i][unit] += 1
-                schedule[i]["instrs"].append(instr["instrAddress"])
+                schedule[i]["instructions"].append(instr["instrAddress"])
                 scheduled = True
                 break
 
         if not scheduled:
             new_bundle = init_bundle()
             new_bundle[unit] += 1
-            new_bundle["instrs"].append(instr["instrAddress"])
+            new_bundle["instructions"].append(instr["instrAddress"])
             schedule.append(new_bundle)
             
     return schedule
@@ -119,11 +119,11 @@ def schedule_bb1(instructions, dependencyTable, unit_limit, full_instr_list):
             bundle = schedule[-1]
             if bundle[unit] < unit_limit[unit]:
                 bundle[unit] += 1
-                bundle["instrs"].append(instr["instrAddress"])
+                bundle["instructions"].append(instr["instrAddress"])
             else:
                 new_bundle = init_bundle()
                 new_bundle[unit] += 1
-                new_bundle["instrs"].append(instr["instrAddress"])
+                new_bundle["instructions"].append(instr["instrAddress"])
                 schedule.append(new_bundle)
             continue
         
@@ -139,14 +139,14 @@ def schedule_bb1(instructions, dependencyTable, unit_limit, full_instr_list):
         for i in range(min_delay, len(schedule)):
             if schedule[i][unit] < unit_limit[unit]:
                 schedule[i][unit] += 1
-                schedule[i]["instrs"].append(instr["instrAddress"])
+                schedule[i]["instructions"].append(instr["instrAddress"])
                 scheduled = True
                 break
 
         if not scheduled:
             new_bundle = init_bundle()
             new_bundle[unit] += 1
-            new_bundle["instrs"].append(instr["instrAddress"])
+            new_bundle["instructions"].append(instr["instrAddress"])
             schedule.append(new_bundle)
     return schedule
 
@@ -156,26 +156,19 @@ def can_schedule_instruction(schedule, dependencyTable, instr, idx, instructions
     based on its dependencies and instruction latency.
     """
     dependency = dependencyTable[idx]
-    print(f"Checking dependencies for instruction {instr['instrAddress']}: {dependency}")
     
     min_delay = 0
     # Check each type of dependency
     for dep_type in ["localDependency", "loopInvarDep", "postLoopDep", "interloopDep"]:
         for dep in dependency[dep_type]:
             for i in range(len(schedule)):
-                if dep in schedule[i]["instrs"]:
+                if dep in schedule[i]["instructions"]:
                     delay = compute_delay(i, get_instruction_with_id(instructions,dep))  # pass instr directly
                     min_delay = max(min_delay, delay)
 
     return min_delay
 
-def compute_delay(scheduled_cycle, instr):
-    """
-    Returns the cycle when the result of an instruction is available.
-    """
-    unit = get_unit_type(instr)
-    latency = 3 if unit == "MULT" else 1
-    return scheduled_cycle + latency
+
 
 
 

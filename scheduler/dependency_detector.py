@@ -1,4 +1,6 @@
 import re
+import copy
+
 
 from utils import parse_mem_operand
 def detector(instruction, needToParse = True):
@@ -87,13 +89,18 @@ def dependency_analysis(parsed):
     dependency_table = []
     for i in range(len(parsed)):
         dependency_table.append({"instrAddress": parsed[i]["instrAddress"], "localDependency": [], "interloopDep": [], "loopInvarDep" : [],"postLoopDep": []})
+    
     detect_local_dependencies(parsed, dependency_table)
     detect_interloop_dependencies(parsed, dependency_table)
     detect_loop_invariant_dependencies(parsed, dependency_table)
     detect_post_loop_dependencies(parsed, dependency_table)
-    
-    clean_dependencies(dependency_table)
-    return dependency_table
+
+    # Make a deep copy for each version
+    latest_timestamp = clean_dependencies_latest_timestamp(copy.deepcopy(dependency_table))
+    only_registers   = clean_dependencies_only_registers(copy.deepcopy(dependency_table))
+    only_timestamp   = clean_dependencies_only_timestamp(copy.deepcopy(dependency_table))
+
+    return (latest_timestamp, only_registers, only_timestamp)
 
 def detect_local_dependencies(parsed, dependency_table):
     """
@@ -111,7 +118,7 @@ def detect_local_dependencies(parsed, dependency_table):
                 newBlock = parsed[j]["opcode"]
                 continue
             
-            if (parsed[j]["dest"] in get_consumer_register(parsed[i]) and parsed[j]["dest"] is not None) and currentBlock == newBlock and parsed[j]["dest"] != None:
+            if (parsed[j]["dest"] in get_consumer_register(parsed[i]) and parsed[j]["dest"] ) and currentBlock == newBlock and parsed[j]["dest"] != None:
                 dependency_table[i]["localDependency"].append((parsed[j]["instrAddress"], parsed[j]["dest"]))
                 
 def detect_interloop_dependencies(parsed, dependency_table):
@@ -134,14 +141,14 @@ def detect_interloop_dependencies(parsed, dependency_table):
             if parsed[j]["instrAddress"] == -1:
                 newBlock = parsed[j]["opcode"]
                 continue
-            if (parsed[j]["dest"] in get_consumer_register(parsed[i]) and parsed[j]["dest"] is not None):
+            if (parsed[j]["dest"] in get_consumer_register(parsed[i]) and parsed[j]["dest"]):
                 match newBlock:
                     case "BB0":
-                            toAdd1 = parsed[j]["instrAddress"]
+                            toAdd1 = (parsed[j]["instrAddress"], parsed[j]["dest"])
                             continue
                     case "BB1":
                             if (parsed[j]["instrAddress"]>=parsed[i]['instrAddress']):
-                                toAdd2 = parsed[j]["instrAddress"]
+                                toAdd2 = (parsed[j]["instrAddress"], parsed[j]["dest"])
                             continue
                     case "BB2":
                         break
@@ -198,15 +205,70 @@ def detect_post_loop_dependencies(parsed, dependency_table):
 
 def clean_dependencies(dep_table):
     for entry in dep_table:
-        for key in ["localDependency",  "loopInvarDep","postLoopDep"]:
+        for key in ["localDependency", "interloopDep", "loopInvarDep","postLoopDep"]:
             reg_map = {}  # reg -> latest instr address
             for instr_addr, reg in entry[key]:
                 if reg not in reg_map or instr_addr > reg_map[reg]:
                     reg_map[reg] = instr_addr
             # Keep just the list of latest instruction addresses
+            #entry[key] = list(reg_map.values())
+
+def clean_dependencies_latest_timestamp(dep_table):
+    for entry in dep_table:
+        for key in ["localDependency",  "loopInvarDep"]:
+            reg_map = {}  # reg -> latest instr address
+            for instr_addr, reg in entry[key]:
+                if reg not in reg_map or instr_addr > reg_map[reg]:
+                    reg_map[reg] = instr_addr
+            # Keep (timestamp, register) pairs, sorted if needed
+            entry[key] = [(addr, reg) for reg, addr in reg_map.items()]
+    for entry in dep_table:
+        for key in [  "postLoopDep"]:
+            reg_map = {}  # reg -> latest instr address
+            for instr_addr, reg in entry[key]:
+                if reg not in reg_map or instr_addr > reg_map[reg]:
+                    reg_map[reg] = instr_addr
+            # Keep (timestamp, register) pairs, sorted if needed
+            entry[key] = [(addr, reg) for reg, addr in reg_map.items()]
+    return dep_table
+def clean_dependencies_only_timestamp(dep_table):
+    for entry in dep_table:
+        for key in ["localDependency", "loopInvarDep"]:
+            reg_map = {}  # reg -> latest instr address
+            for instr_addr, reg in entry[key]:
+                if reg not in reg_map or instr_addr > reg_map[reg]:
+                    reg_map[reg] = instr_addr
+            # Keep only the timestamps
             entry[key] = list(reg_map.values())
+    for entry in dep_table:
+        for key in [  "postLoopDep"]:
+            reg_map = {}  # reg -> latest instr address
+            for instr_addr, reg in entry[key]:
+                if reg not in reg_map or instr_addr > reg_map[reg]:
+                    reg_map[reg] = instr_addr
+            # Keep (timestamp, register) pairs, sorted if needed
+            entry[key] = [(addr, reg) for reg, addr in reg_map.items()]
+            
+    return dep_table
+def clean_dependencies_only_registers(dep_table):
+    for entry in dep_table:
+        for key in ["localDependency", "loopInvarDep"]:
+            registers = set()
+            for _, reg in entry[key]:
+                registers.add(reg)
+            entry[key] = list(registers)
+    for entry in dep_table:
+        for key in [  "postLoopDep"]:
+            reg_map = {}  # reg -> latest instr address
+            for instr_addr, reg in entry[key]:
+                if reg not in reg_map or instr_addr > reg_map[reg]:
+                    reg_map[reg] = instr_addr
+            # Keep (timestamp, register) pairs, sorted if needed
+            entry[key] = [(addr, reg) for reg, addr in reg_map.items()]
 
+    return dep_table
 
+           
 def get_consumer_register(instr):
     regs = []
 

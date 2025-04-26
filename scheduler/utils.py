@@ -30,7 +30,7 @@ def print_schedule(schedule):
         for unit in ["ALU", "MULT", "MEM", "BRANCH"]:
             count = bundle[unit]
             print(f"  {unit:<6}: {count} slot(s)")
-        print(f"  Instructions: {bundle['instrs']}")
+        print(f"  Instructions: {bundle['instructions']}")
     print("===========================\n")
 
 
@@ -111,9 +111,88 @@ def get_unit_type(instr):
 def shift_instr_addresses(schedule, from_instr_address, shift_by):
     for bundle in schedule:
         for instr in bundle:
-            if instr["instrAddress"] is not None and instr["instrAddress"] >= from_instr_address:
+            if instr["instrAddress"] and instr["instrAddress"] >= from_instr_address:
                 instr["instrAddress"] += shift_by
                 
+def compute_delay(scheduled_cycle, instr):
+    """
+    Returns the cycle when the result of an instruction is available.
+    """
+    unit = get_unit_type(instr)
+    latency = 3 if unit == "MULT" else 1
+    return scheduled_cycle + latency       
+
+
+def convert_loop_to_json(parsedInstruction, schedule):
+    """
+    Converts the loop schedule to a JSON format,
+    enforcing specific slots:
+    Slot 0-1: ALU, Slot 2: MULT, Slot 3: MEM, Slot 4: BRANCH
+    """
+    json_schedule = []
+    
+    instr_map = {instr["instrAddress"]: instr for instr in parsedInstruction if instr["instrAddress"] != -1}
+
+    for bundle in schedule:
+        slots = [" nop"] * 5  # Initialize with 5 nops
+        # classify instructions
+        alus = []
+        mults = []
+        mems = []
+        branch = []
+        
+        for addr in bundle["instructions"]:
+            instr = instr_map.get(addr)
+            if instr is None:
+                continue
+            opcode = instr["opcode"]
+            if opcode in ["mov", "add", "addi", "sub"]:
+                alus.append(instr)
+            elif opcode in ["mulu", "mul"]:
+                mults.append(instr)
+            elif opcode in ["ld", "st"]:
+                mems.append(instr)
+            elif opcode == "loop":
+                for idx, bundle2 in enumerate(schedule):
+                    for i in bundle2["instructions"]:
+                        i = instr_map.get(i)
+                        if i["instrAddress"] == int(instr["dest"]):
+                            instr["dest"] = idx
+                branch.append(instr)
+
+        # fill slots
+        if len(alus) > 0:
+            slots[0] = format_instruction(alus[0])
+        if len(alus) > 1:
+            slots[1] = format_instruction(alus[1])
+        if len(mults) > 0:
+            slots[2] = format_instruction(mults[0])
+        if len(mems) > 0:
+            slots[3] = format_instruction(mems[0])
+        if len(branch) > 0:
+            slots[4] = format_instruction(branch[0])
+
+        json_schedule.append(slots)
+
+    return json_schedule
+
+def format_instruction(instr):
+    opcode = instr["opcode"]
+    dest = instr.get("dest")
+    src1 = instr.get("src1")
+    src2 = instr.get("src2")
+    mem = instr.get("memSrc1")
+    
+    if opcode == "loop":
+        return f" {opcode} {dest}"
+    elif opcode in ["ld", "st"] and mem:
+        return f" {opcode} {dest}, {mem}"
+    elif src2:
+        return f" {opcode} {dest}, {src1}, {src2}"
+    elif src1:
+        return f" {opcode} {dest}, {src1}"
+    else:
+        return f" {opcode} {dest}"
 
 def init_bundle():
     return {
@@ -121,7 +200,7 @@ def init_bundle():
         "MULT": 0,
         "MEM": 0,
         "BRANCH": 0,
-        "instrs": []
+        "instructions": []
     }
 
 unit_limit = {

@@ -4,7 +4,7 @@ from dependency_detector import detector
 from scheduler_loop import simple_loop
 from register_loop import register_loop
 
-from utils import print_schedule, format_instructions_schedule
+from utils import *
 def main():
     args = sys.argv[1:]
 
@@ -12,45 +12,44 @@ def main():
         print("Usage: python simulator.py input.json outputLoop.json outputLoopPip.json [--debug]")
         return
 
-    debug_mode = False
-    if "--debug" in args:
-        debug_mode = True
-        args.remove("--debug")
-
     input = args[0]
     outputLoop = args[1]
     outputLoopPip = args[2]
+    debug_mode = False
 
-    # Load input
-    if debug_mode:
-        print("Debug mode enabled.")
+    if len(args) == 4:
+        if args[3] == "--debug":
+            debug_mode = True
+        else:
+            print(f"Unknown option {args[3]}")
+            return
 
     with open(input) as f:
         instructions = json.load(f)
         
-    (parsedInstruction, dependencyTable) = detector(instructions)   
-    if debug_mode:
-        print("Parsed Instructions:")
-        for x in parsedInstruction:
-            print(x)
-        print("Dependency Table:")
-        for x in dependencyTable:
-            print(x)
-    loopScheduler = simple_loop(dependencyTable, parsedInstruction)    
-    if debug_mode:
-        print_schedule(loopScheduler)
+    (parsedInstruction, dependencyTable) = detector(instructions)
+    print(dependencyTable)
+    print("\n=== Dependency Table ===")
+    for i in dependencyTable:
+        print("==============================")
+        for j in i:
+            print(j)    
+    dependencyTable = dependencyTable[2]
+    loopScheduler = simple_loop(dependencyTable, parsedInstruction)
+    print("\n=== Loop Scheduler ===")
+    print_schedule(loopScheduler)
+    for i in parsedInstruction:
+        print(i)
+    (schedule, parsedInstruction) = register_loop(loopScheduler, parsedInstruction, dependencyTable)
     
-    loopRegister = register_loop(loopScheduler, parsedInstruction, dependencyTable)
+    json2 = convert_loop_to_json(parsedInstruction, schedule)
     
-    (parsedInstruction, dependencyTable) = detector(loopRegister, needToParse=False)   
-    loopScheduler = simple_loop(dependencyTable, parsedInstruction)    
+    with open(outputLoop, "w") as f:
+        json.dump(json2, f, indent=4)
+
     if debug_mode:
-            print_schedule(loopScheduler)
-    # if debug_mode:
-    #     result = format_instructions_schedule(loopRegister)
-    #     for line in result:
-    #         print(line)
-    
+        for i in json2:
+            print(i)
 
 
 if __name__ == "__main__":

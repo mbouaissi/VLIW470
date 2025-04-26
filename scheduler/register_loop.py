@@ -1,94 +1,90 @@
-from utils import get_instruction_with_id, get_unit_type, init_bundle, sort_instructions_by_unit, unit_limit
+from utils import *
 
+def register_loop(schedule, parsedInstruction, dependencyTable):
+    schedule_with_reg = convert_back_to_register(schedule, parsedInstruction)
+    schedule_sorted = sort_instructions_by_unit(schedule_with_reg)
 
-def register_loop(schedule,parsedInstruction, dependencyTable,):
-    
-    schedule = convert_back_to_register(schedule, parsedInstruction)
-    schedule = sort_instructions_by_unit(schedule)
-    
-    
     start_index = 1
-    loop_dep={}
+    loop_dep = {}
     reg_transform = {}
-    for idx, bundle in enumerate(schedule):
-        for instr in bundle:
-            if instr["opcode"] != "st" and instr["dest"] and instr["dest"].startswith("x"):
-                new_reg = f"x{start_index}"
-                loop_dep.setdefault(new_reg, [])
-                if instr["dest"] == instr["src1"]:
-                    loop_dep[new_reg].append(instr["src1"])
-                if instr["dest"] == instr["src2"]:
-                    loop_dep[new_reg].append(instr["src2"])
-                if reg_transform.get(instr["dest"])is None:
-                    reg_transform[instr["dest"]] = new_reg
-                instr["dest"] = new_reg
-                
-                start_index += 1
-    for k in schedule:  
-        for l in k:
-            dest = l["dest"]
-            # src1
-            if l["src1"] is not None and l["src1"].startswith("x"):
-                old = l["src1"]
-                new = reg_transform.get(old)
-                if new and old != new:
-                    l["src1"] = new
-                    update_loop_dep_dict(loop_dep, old, new,dest)
-                    # if loop_dep.get(new) is not None:
-                    #     loop_dep[new] = []
+    instr_to_bundle = []
 
-            # src2
-            if l["src2"] is not None and l["src2"].startswith("x"):
-                old = l["src2"]
-                new = reg_transform.get(old)
-                if new and old != new:
-                    l["src2"] = new
-                    update_loop_dep_dict(loop_dep, old, new,dest)
-                    # loop_dep.setdefault(new, []).append(old)
+    for i in dependencyTable:
+        print("Interloop dep: ", i)
+    # Flatten the bundles into a single list
+    for bundle in schedule_sorted:
+        instr_to_bundle.extend(bundle)
 
-            # memSrc1
-            if l["memSrc1"] is not None:
-                start = l["memSrc1"].find('(')
-                end = l["memSrc1"].find(')')
+    # First pass: rename destination registers and record dependencies
+    for idx, instr in enumerate(instr_to_bundle):
+        if instr["opcode"] != "st" and instr["dest"] and instr["dest"].startswith("x"):
+            new_reg = f"x{start_index}"
+            loop_dep.setdefault(new_reg, [])
+
+            # Track dependency if dest == src1 or src2
+            if instr["dest"] == instr["src1"]:
+                loop_dep[new_reg].append(instr["src1"])
+            if instr["dest"] == instr["src2"]:
+                loop_dep[new_reg].append(instr["src2"])
+
+            # Record the transformation
+            reg_transform.setdefault(instr["dest"], []).append((new_reg, instr["instrAddress"]))
+            instr["dest"] = new_reg
+
+            print(f"Instruction: {idx}")
+            print(f"\treg for {reg_transform}")
+
+            start_index += 1
+
+        print(f"Loop dep: {loop_dep}")
+
+    # Second pass: update all sources to the newest available register
+    for instr in instr_to_bundle:
+        # Helper to update a single field
+        def update_field(field_name):
+            if instr[field_name] and instr[field_name].startswith("x"):
+                old = instr[field_name]
+                if old in reg_transform:
+                    for new_reg, addr in reg_transform[old]:
+                        if instr["instrAddress"] > addr:
+                            instr[field_name] = new_reg
+                            modify_dependency_table(dependencyTable, instr, new_reg, old, loop_dep)
+
+        update_field("dest") if instr["opcode"] == "st" else None
+        update_field("src1")
+        update_field("src2")
+
+        # Update memory sources
+        def update_mem_src(mem_field, mem_field2):
+            if instr[mem_field]:
+                start = instr[mem_field].find('(')
+                end = instr[mem_field].find(')')
                 if start != -1 and end != -1:
-                    reg_in_mem = l["memSrc1"][start+1:end]
-                    renamed = reg_transform.get(reg_in_mem)
-                    if renamed and renamed != reg_in_mem:
-                        l["memSrc1"] = l["memSrc1"].replace(reg_in_mem, renamed)
-                        update_loop_dep_dict(loop_dep, reg_in_mem,renamed,dest)
-                        # loop_dep.setdefault(renamed, []).append(reg_in_mem)
-
-            # memSrc2
-            if l["memSrc2"] is not None:
-                start = l["memSrc2"].find('(')
-                end = l["memSrc2"].find(')')
-                if start != -1 and end != -1:
-                    reg_in_mem = l["memSrc2"][start+1:end]
-                    renamed = reg_transform.get(reg_in_mem)
-                    if renamed and renamed != reg_in_mem:
-                        l["memSrc2"] = l["memSrc2"].replace(reg_in_mem, renamed)
-                        
-                        update_loop_dep_dict(loop_dep, reg_in_mem,renamed,dest)    
-                        # loop_dep.setdefault(renamed, []).append(reg_in_mem)
-     
+                    reg_in_mem = instr[mem_field][start + 1:end]
+                    if reg_in_mem in reg_transform:
+                        for new_reg, addr in reg_transform[reg_in_mem]:
+                            if instr["instrAddress"] > addr:
+                                new_reg = instr[mem_field2]
+                                instr[mem_field] = instr[mem_field].replace(reg_in_mem, new_reg)
+                                print(f"Instruction: {instr['instrAddress']}")
+                                print(f"\t{instr[mem_field]} -> {new_reg}")
+                                modify_dependency_table(dependencyTable, instr, new_reg, reg_in_mem, loop_dep)
+        update_mem_src("memSrc1", "src1")
+        update_mem_src("memSrc2", "src2")
+        
     loop_bundle_idx = next(
-        (i for i, bundle in enumerate(schedule) for instr in bundle if instr["opcode"] == "loop"),
+        (i for i, bundle in enumerate(schedule_sorted) for instr in bundle if instr["opcode"] == "loop"),
         None
     )
-    
-    for i in range(len(schedule)):
-        schedule[i] = [instr for instr in schedule[i] if instr["instrAddress"] != -1]
-    schedule = [bundle for bundle in schedule if len(bundle) > 0]   
-    # Step: Insert movs before loop for loop-carried dependencies
     interloop_movs = []
 
-    index_to_insert = 0#because of the bb in schedule lol
+    index_to_insert = 0
     for (renamed_reg, original_regs) in(loop_dep.items()):
         for orig in original_regs:
             if orig != renamed_reg:
                 index_to_insert += 1
                 mov_instr = {
-                    "instrAddress": loop_bundle_idx + index_to_insert + 2,#+2 to take in account the BB
+                    "instrAddress": len(schedule) + index_to_insert + 2,#+2 to take in account the BB
                     "opcode": "mov",
                     "dest": orig,       
                     "src1": renamed_reg, 
@@ -97,13 +93,64 @@ def register_loop(schedule,parsedInstruction, dependencyTable,):
                     "memSrc2": None,
                 }
                 interloop_movs.append(mov_instr)
+                
+   # print(interloop_movs)
+    parsedInstruction.extend(interloop_movs)
     
-    #parsedInstruction = [instr for instr in parsedInstruction if instr["instrAddress"] != -1]
-    #parsedInstruction.sort(key=lambda instr: instr["instrAddress"])
-    insert_movs_before_loop(parsedInstruction, interloop_movs)
-
+    for i in interloop_movs:
+        delay = compute_min_delay_mov(parsedInstruction, schedule_sorted, i, loop_bundle_idx)
+        if schedule[loop_bundle_idx]["ALU"]< unit_limit["ALU"] and delay == 0:
+            schedule[loop_bundle_idx]["ALU"] += 1
+            schedule[loop_bundle_idx]["instructions"].append(i["instrAddress"])
+            
+        else:
+            loop_instrAddr = next((i["instrAddress"] for i in parsedInstruction if i["opcode"] == "loop"), None)
+            
+            schedule[loop_bundle_idx]["BRANCH"] = 0
+            schedule[loop_bundle_idx]["instructions"].remove(loop_instrAddr) 
+            if delay == 0:
+                delay = 1
+            for j in range(delay):
+                new_bundle = init_bundle()
+                schedule.insert(loop_bundle_idx +1, new_bundle)
+                loop_bundle_idx += 1
+            schedule[loop_bundle_idx]["ALU"] += 1
+            schedule[loop_bundle_idx]["instructions"].append(i["instrAddress"])
+            schedule[loop_bundle_idx]["BRANCH"] = 1
+            schedule[loop_bundle_idx]["instructions"].append(loop_instrAddr)
+            
                         
-    return parsedInstruction
+    return schedule, parsedInstruction
+
+def modify_dependency_table(dependencyTable, instr, new_value, old_value, loop_dep ):
+    """
+    Modifies the dependency table to account for the new mov instructions.
+    """
+    for i in dependencyTable:
+        for idx, j in enumerate(i["interloopDep"]):
+            if j[0] == instr["instrAddress"] and j[1] == old_value:
+                print("Modifying dependency table")
+                # Update the tuple in-place
+                i["interloopDep"][idx] = (instr["instrAddress"], new_value)
+                for k in loop_dep:
+                    update_loop_dep_dict(loop_dep, old_value, new_value, k)
+
+                
+
+def compute_min_delay_mov(parsedInstruction, schedule, instruction, loop_index ):
+    """
+    Computes the minimum delay for the mov instructions.
+    """
+    register = instruction["src1"]
+    delay = 0
+    for idx, bundle in enumerate(schedule[:loop_index]):
+        for instr in bundle:
+            if instr["dest"] == register:
+                
+                delay = max((compute_delay(0,instr)+idx)-loop_index,delay)#Compute the delay with respect to the last bundle, so how many bundle we would need to add
+    
+    print("Delay for mov instruction: ", delay)
+    return delay
 def insert_movs_before_loop(parsedInstruction, interloop_movs):
     # Step 1: Find index of the first 'loop' instruction (excluding BBs)
     loop_index = next(
@@ -144,7 +191,7 @@ def convert_back_to_register(schedule, parsedInstruction):
     new_schedule = []
     for cycle in schedule:
         bundle = []
-        for instr in cycle["instrs"]:   
+        for instr in cycle["instructions"]:   
             instr_data = get_instruction_with_id(parsedInstruction, instr)
             if instr_data:
                 bundle.append(instr_data)
