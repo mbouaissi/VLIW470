@@ -17,17 +17,15 @@ def simple_loop(dependencyTable, parsedInstruction):
     # Schedule BB0 
     schedule += schedule_basic_block(parsedInstruction[:bb1_start], dependencyTable,unit_limit,parsedInstruction)
     
-    if bb1_start is len(parsedInstruction):
+    if bb1_start == len(parsedInstruction):
         return schedule
     
     # Schedule BB1 
     scheduleBB1 = schedule_bb1(parsedInstruction[bb1_start+1:bb2_start], dependencyTable, unit_limit, parsedInstruction)
-
     add_delay_BB0_dependency(schedule, scheduleBB1, dependencyTable, parsedInstruction)
-            
+    
+    # Schedule BB2 
     scheduleBB2 = schedule_basic_block(parsedInstruction[bb2_start+1:], dependencyTable,unit_limit,parsedInstruction) if bb2_start  else []
-
-    # Schedule BB2
     add_delay_BB2_dependency( scheduleBB1,scheduleBB2, dependencyTable, parsedInstruction)
     
     return schedule + scheduleBB1 + scheduleBB2
@@ -70,10 +68,8 @@ def add_delay_BB2_dependency( scheduleBB1,scheduleBB2, dependencyTable, parsedIn
                                     
                                     
 def compute_relative_distance(idxBB0, idxBB1, scheduleBB0):
-    dist0 = len(scheduleBB0) - idxBB0
-    dist1 =  idxBB1
-    
-    return dist0 + dist1
+    return (len(scheduleBB0) - idxBB0) + idxBB1
+
 
 def schedule_basic_block(instructions, dependencyTable, unit_limit, full_instr_list):
     schedule = []
@@ -156,7 +152,6 @@ def can_schedule_instruction(schedule, dependencyTable, instr, idx, instructions
     based on its dependencies and instruction latency.
     """
     dependency = dependencyTable[idx]
-    
     min_delay = 0
     # Check each type of dependency
     for dep_type in ["localDependency", "loopInvarDep", "postLoopDep", "interloopDep"]:

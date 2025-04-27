@@ -76,8 +76,8 @@ def register_loop(schedule, parsedInstruction, dependencyTable):
         (i for i, bundle in enumerate(schedule_sorted) for instr in bundle if instr["opcode"] == "loop"),
         None
     )
+    
     interloop_movs = []
-
     index_to_insert = 0
     for (renamed_reg, original_regs) in(loop_dep.items()):
         for orig in original_regs:
@@ -94,7 +94,6 @@ def register_loop(schedule, parsedInstruction, dependencyTable):
                 }
                 interloop_movs.append(mov_instr)
                 
-   # print(interloop_movs)
     parsedInstruction.extend(interloop_movs)
     
     for i in interloop_movs:
@@ -129,7 +128,6 @@ def modify_dependency_table(dependencyTable, instr, new_value, old_value, loop_d
     for i in dependencyTable:
         for idx, j in enumerate(i["interloopDep"]):
             if j[0] == instr["instrAddress"] and j[1] == old_value:
-                print("Modifying dependency table")
                 # Update the tuple in-place
                 i["interloopDep"][idx] = (instr["instrAddress"], new_value)
                 for k in loop_dep:
@@ -148,35 +146,29 @@ def compute_min_delay_mov(parsedInstruction, schedule, instruction, loop_index )
             if instr["dest"] == register:
                 
                 delay = max((compute_delay(0,instr)+idx)-loop_index,delay)#Compute the delay with respect to the last bundle, so how many bundle we would need to add
-    
-    print("Delay for mov instruction: ", delay)
     return delay
 def insert_movs_before_loop(parsedInstruction, interloop_movs):
-    # Step 1: Find index of the first 'loop' instruction (excluding BBs)
+    # Find index of the first loop instruction 
     loop_index = next(
         i for i, instr in enumerate(parsedInstruction)
         if instr["opcode"] == "loop" and instr["instrAddress"] != -1
     )
-
     shift_amount = len(interloop_movs)
-
-    # Step 2: Shift only real instructions (ignore BBx with instrAddress == -1)
+    # Shift only real instructions 
     for i in range(loop_index, len(parsedInstruction)):
         if parsedInstruction[i]["instrAddress"] != -1:
             parsedInstruction[i]["instrAddress"] += shift_amount
 
-    # Step 3: Assign instrAddress to interloop_movs (based on loop's current addr - shift)
+    # Assign instrAddress to interloop_movs 
     base_addr = parsedInstruction[loop_index]["instrAddress"] - shift_amount
     for offset, mov in enumerate(interloop_movs):
         mov["instrAddress"] = base_addr + offset
 
-    # Step 4: Find safe insertion point **before** loop and **after last non-BB**
-    # We walk back from loop_index to find where to place the movs
+    #Find safe insertion point before loop and after last non-BB
     insert_index = loop_index
     while insert_index > 0 and parsedInstruction[insert_index - 1]["instrAddress"] == -1:
         insert_index -= 1
 
-    # Step 5: Insert the mov instructions
     parsedInstruction[insert_index:insert_index] = interloop_movs
 
 
