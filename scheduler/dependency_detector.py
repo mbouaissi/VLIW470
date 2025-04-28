@@ -1,8 +1,8 @@
 import re
 import copy
 
-
 from utils import parse_mem_operand
+
 def detector(instruction, needToParse = True):
     parsed_instruction = instruction
     if  needToParse:
@@ -102,6 +102,7 @@ def dependency_analysis(parsed):
 
     return (latest_timestamp, only_registers, only_timestamp)
 
+# Different loop iterations are considered different basic blocks (verify correct implementation!)
 def detect_local_dependencies(parsed, dependency_table):
     """
     Detect local dependencies within the same block.
@@ -118,7 +119,7 @@ def detect_local_dependencies(parsed, dependency_table):
                 newBlock = parsed[j]["opcode"]
                 continue
             
-            if (parsed[j]["dest"] in get_consumer_register(parsed[i]) and parsed[j]["dest"] ) and currentBlock == newBlock and parsed[j]["dest"] != None:
+            if (parsed[j]["dest"] in get_consumer_register(parsed[i])) and currentBlock == newBlock and parsed[j]["dest"] != None:
                 dependency_table[i]["localDependency"].append((parsed[j]["instrAddress"], parsed[j]["dest"]))
                 
 def detect_interloop_dependencies(parsed, dependency_table):
@@ -130,14 +131,12 @@ def detect_interloop_dependencies(parsed, dependency_table):
         if parsed[i]["instrAddress"] == -1:
             currentBlock = parsed[i]["opcode"]
             continue
-        if currentBlock != "BB1":
+        if currentBlock != "BB1": # Consumer has to be in loop body
             continue
         newBlock = "BB0"
         toAdd1 = -1
         toAdd2 = -1
-        dest = -1
         for j in range(len(parsed)):
-            dest = parsed[j]["dest"]
             if parsed[j]["instrAddress"] == -1:
                 newBlock = parsed[j]["opcode"]
                 continue
@@ -154,8 +153,8 @@ def detect_interloop_dependencies(parsed, dependency_table):
                         break
         if toAdd2 != -1:
             dependency_table[i]["interloopDep"].append(toAdd2)
-            if toAdd1 != -1:
-                dependency_table[i]["interloopDep"].append(toAdd1)
+        if toAdd1 != -1:
+            dependency_table[i]["interloopDep"].append(toAdd1)
 
 def detect_loop_invariant_dependencies(parsed, dependency_table):
     """
@@ -215,7 +214,7 @@ def clean_dependencies(dep_table):
 
 def clean_dependencies_latest_timestamp(dep_table):
     for entry in dep_table:
-        for key in ["localDependency",  "loopInvarDep"]:
+        for key in ["localDependency", "loopInvarDep"]:
             reg_map = {}  # reg -> latest instr address
             for instr_addr, reg in entry[key]:
                 if reg not in reg_map or instr_addr > reg_map[reg]:
@@ -223,7 +222,7 @@ def clean_dependencies_latest_timestamp(dep_table):
             # Keep (timestamp, register) pairs, sorted if needed
             entry[key] = [(addr, reg) for reg, addr in reg_map.items()]
     for entry in dep_table:
-        for key in [  "postLoopDep"]:
+        for key in ["postLoopDep"]:
             reg_map = {}  # reg -> latest instr address
             for instr_addr, reg in entry[key]:
                 if reg not in reg_map or instr_addr > reg_map[reg]:
@@ -286,10 +285,6 @@ def get_producer_register(instr):
     if instr["dest"] and instr["dest"].startswith("x"): 
         regs.append(instr["dest"])
     if instr["opcode"] == "st":
-        # For store, both dest and src important
-        if instr["src1"] and instr["src1"].startswith("x"): 
-            regs.append(instr["src1"])
-        if instr["src2"] and instr["src2"].startswith("x"): 
-            regs.append(instr["src2"])
+        regs = [] # No producer register for store instruction
     
     return set(regs)
