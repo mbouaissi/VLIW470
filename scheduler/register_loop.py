@@ -10,32 +10,31 @@ def register_loop(schedule, parsedInstructions, dependencyTable):
     register_renaming_map = {}
     flattened_schedule = []
 
-    # Debug: show current interloop dependencies
-    for entry in dependencyTable:
-        print(f"Interloop dependency: {entry['interloopDep']} for address {entry['instrAddress']} and destination {get_instruction_with_id(parsedInstructions, entry['instrAddress'])['dest']}")
-
     # Flatten instruction bundles into a single list
     for instruction_bundle in schedule_sorted:
         flattened_schedule.extend(instruction_bundle)
 
     # First pass: Rename destination registers and record initial dependencies
+    no_more_interloop_possible = False
     for idx, instruction in enumerate(flattened_schedule):
+        if instruction["opcode"] == "loop":
+            no_more_interloop_possible = True
+            continue
+        print(f"Processing instruction {idx}: {instruction}")
         if instruction["opcode"] != "st" and instruction["dest"] and instruction["dest"].startswith("x"):
             new_register = f"x{reg_rename_counter}"
             interloop_dependency_map[new_register] = None
-
-            if instruction["dest"] == instruction["src1"]:
+            print(f"Renaming {instruction['dest']} to {new_register}")
+            if instruction["dest"] == instruction["src1"] and not no_more_interloop_possible:
                 interloop_dependency_map[new_register] = instruction["src1"]
-            if instruction["dest"] == instruction["src2"]:
+            if instruction["dest"] == instruction["src2"]and not no_more_interloop_possible:
                 interloop_dependency_map[new_register] = instruction["src2"]
 
             register_renaming_map.setdefault(instruction["dest"], []).append((new_register, instruction["instrAddress"]))
             instruction["dest"] = new_register
-
-            print(f"Instruction {idx}: register renaming map updated: {register_renaming_map}")
             reg_rename_counter += 1
 
-        print(f"Interloop dependency map: {interloop_dependency_map}")
+    print(interloop_dependency_map)
 
     # Second pass: Update sources to match new register names
     def update_memory_source(mem_field, mem_src_field):
@@ -47,13 +46,9 @@ def register_loop(schedule, parsedInstructions, dependencyTable):
                 if reg_in_mem in register_renaming_map:
                     for new_reg, addr in register_renaming_map[reg_in_mem]:
                         if instruction["instrAddress"] > addr :
-                            
-                            print(f"Updating memory source§ {addr} from {instruction['instrAddress']} to {new_reg}")
-
                             new_reg_to_use = instruction[mem_src_field]
                             instruction[mem_field] = instruction[mem_field].replace(reg_in_mem, new_reg_to_use)
                             for tuple in get_instruction_with_id(dependencyTable,instruction["instrAddress"])["interloopDep"]:
-                                
                                 if  addr == tuple[0]:
                                     update_interloop_dependency_table(dependencyTable, instruction, new_reg_to_use, reg_in_mem, interloop_dependency_map)
 
@@ -63,17 +58,12 @@ def register_loop(schedule, parsedInstructions, dependencyTable):
             if old_reg in register_renaming_map:
                 for new_reg, addr in register_renaming_map[old_reg]:
                     if instruction["instrAddress"] > addr :
-                        print(f"Updating memory source {addr} from {instruction['instrAddress']} to {new_reg}")
                         instruction[field_name] = new_reg                            
                         for tuple in get_instruction_with_id(dependencyTable,instruction["instrAddress"])["interloopDep"]:
-                            print(f"Address {addr} from tuple {tuple} and {addr==tuple[0]}")        
                             if  addr == tuple[0]:
                                 update_interloop_dependency_table(dependencyTable, instruction, new_reg, old_reg, interloop_dependency_map)
 
     for instruction in flattened_schedule:
-        print("==========================")
-        print(f"BEFORE instruction {instruction['instrAddress']}, {instruction}:")
-        print("\t", interloop_dependency_map)
 
         if instruction["opcode"] == "st":
             update_field("dest")
@@ -81,9 +71,6 @@ def register_loop(schedule, parsedInstructions, dependencyTable):
         update_field("src2")
         update_memory_source("memSrc1", "src1")
         update_memory_source("memSrc2", "src2")
-
-        print("AFTER:")
-        print("\t", interloop_dependency_map)
 
     # Find loop bundle index
     loop_bundle_index = next(
@@ -99,10 +86,9 @@ def register_loop(schedule, parsedInstructions, dependencyTable):
             continue
         insert_address = instruction["instrAddress"]
         break
-
+    print(interloop_dependency_map)
     for renamed_register, original in interloop_dependency_map.items():
         if original and original != renamed_register:
-            print(f"Adding mov from {renamed_register} to {original}")
             insert_address += 1
             mov_instruction = {
                 "instrAddress": insert_address,
@@ -154,7 +140,6 @@ def register_loop(schedule, parsedInstructions, dependencyTable):
                         break
                 if hasChanged:
                     break
-        print(f"Loop bundle index: {loop_instruction}")
     
     return schedule, parsedInstructions
 
@@ -178,8 +163,6 @@ def calculate_mov_insertion_delay(parsedInstructions, schedule, mov_instruction,
     for idx, bundle in enumerate(schedule[:loop_index+1]):
         for instr in bundle:
             if instr["dest"] == register:
-                print(f"Dependency found for {mov_instruction['instrAddress']} with {instr['instrAddress']}")
-                print(f"Delay: {(compute_delay(0, instr) + idx)}")
                 delay = max((compute_delay(0, instr) + idx) - loop_index, delay)
     return delay
 
@@ -187,7 +170,6 @@ def update_interloop_dependency_table(dependencyTable, instruction, new_value, o
     for entry in dependencyTable:
         for idx, (instrAddr, reg) in enumerate(entry["interloopDep"]):
             if instrAddr == instruction["instrAddress"]:
-                print(f"Updating dependency table for {instruction['instrAddress']} from {old_value} to {new_value}")
                 entry["interloopDep"][idx] = (instruction["instrAddress"], new_value)
                 for key in interloop_dependency_map:
                     propagate_register_update_in_dependency_map(interloop_dependency_map, old_value, new_value, key)

@@ -3,15 +3,18 @@ import struct
 
 def parse_mem_operand(operand):
     """
-    Parses memory operand like '0(x2)' into {'base': 'x2', 'offset': 0}
-    If not a memory operand, returns None
+    Parses memory operand like '0(x2)' or '0x1000(x2)' into {'base': 'x2', 'offset': 0 or 4096}
     """
     if operand is None:
         return None
-    match = re.match(r"(-?\d+)\((x\d+)\)", operand)
+    match = re.match(r"(-?(?:0x)?[0-9a-fA-F]+)\((x\d+)\)", operand)
     if match:
-        offset, base = match.groups()
-        return {"base": base, "offset": int(offset), "raw": operand}
+        offset_str, base = match.groups()
+        if offset_str.startswith('0x') or offset_str.startswith('-0x'):
+            offset = int(offset_str, 16)
+        else:
+            offset = int(offset_str, 10)
+        return {"base": base, "offset": offset, "raw": operand}
     return None
 
 
@@ -37,45 +40,7 @@ def print_schedule(schedule):
 # XXX: nothing to FU 2 (shouldn't mulu go to 2)?
 # Try to regroup the instructions per slot type
 # Too simplistic as may overwrite?
-def format_instructions_schedule(schedule):
-    formatted_schedule = []
-    
-    for cycle in schedule:
-        # Start with 5 "nop" slots
-        formatted_cycle = ["nop"] * 5
-        
-        for instr in cycle:
-            op = instr['opcode']
-            dest = instr.get('dest')
-            src1 = instr.get('src1')
-            src2 = instr.get('src2')
-            mem = instr.get('memSrc1')
 
-            if op == "mov":
-                line = f" mov {dest}, {src1}"
-                formatted_cycle[cycle.index(instr)] = line
-            elif op == "addi":
-                line = f" addi {dest}, {src1}, {src2}"
-                formatted_cycle[0] = line  # ALU
-            elif op == "ld":
-                line = f" ld {dest}, {mem}"
-                formatted_cycle[3] = line  # MEM
-            elif op == "st":
-                line = f" st {dest}, {mem}"
-                formatted_cycle[3] = line  # MEM
-            elif op == "mulu":
-                line = f" mulu {dest}, {src1}, {src2}"
-                formatted_cycle[1] = line  # MULT
-            elif op == "loop":
-                line = f" loop {dest}"
-                formatted_cycle[4] = line  # BRANCH
-            else:
-                line = f" {op} {dest}, {src1}, {src2}"
-                formatted_cycle[0] = line  # default to ALU (sub + add)
-
-        formatted_schedule.append(formatted_cycle)
-
-    return formatted_schedule
 
 
 def sort_instructions_by_unit(schedule):
@@ -172,22 +137,27 @@ def convert_loop_to_json(parsedInstruction, schedule):
 
     return json_schedule
 
+def format_operand(op):
+    if op is None:
+        return None
+    if isinstance(op, str):
+        # Check if it's a memory operand first
+        mem_match = re.match(r"(-?0x[0-9a-fA-F]+)\((x\d+)\)", op)
+        if mem_match:
+            offset_hex, base_reg = mem_match.groups()
+            offset_dec = str(int(offset_hex, 16))
+            return f"{offset_dec}({base_reg})"
+        elif op.startswith("0x"):
+            return str(int(op, 16))
+    return op
+
 def format_instruction(instr):
     opcode = instr["opcode"]
     dest = instr.get("dest")
-    src1 = instr.get("src1")
-    src2 = instr.get("src2")
-    mem = instr.get("memSrc1")
-
-    # Helper to convert hex immediates to int string
-    def format_operand(op):
-        if isinstance(op, str) and op.startswith("0x"):
-            return str(int(op, 16))  # Convert hex to decimal string
-        return op  # Otherwise return as is
-
-    # Apply to src1 and src2
-    src1 = format_operand(src1)
-    src2 = format_operand(src2)
+    src1 = format_operand(instr.get("src1"))
+    src2 = format_operand(instr.get("src2"))
+    mem = format_operand(instr.get("memSrc1"))
+    print(instr)
 
     if opcode == "loop":
         return f" {opcode} {dest}"
@@ -199,6 +169,7 @@ def format_instruction(instr):
         return f" {opcode} {dest}, {src1}"
     else:
         return f" {opcode} {dest}"
+
 
 
 def empty_block(name):

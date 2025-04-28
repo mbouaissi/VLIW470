@@ -29,11 +29,11 @@ def main():
         
     (parsedInstruction, dependencyTable) = detector(instructions)
     
+    for i in parsedInstruction:
+        print(i)
     print("\n=== Dependency Table ===")
-    for i in dependencyTable:
-        print("==============================")
-        for j in i:
-            print(j)    
+    for i in dependencyTable[0]:
+        print(i)    
             
     
     dependencyTable = dependencyTable[0]
