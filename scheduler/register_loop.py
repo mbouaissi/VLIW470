@@ -12,7 +12,9 @@ def register_loop(schedule, parsedInstruction, dependencyTable):
 
     for i in dependencyTable:
         print(f"Interloop dep: {i['interloopDep']} for address {i['instrAddress']} and dest {get_instruction_with_id(parsedInstruction, i['instrAddress'])['dest']}")
-# Flatten the bundles into a single list
+
+    
+    # Flatten the bundles into a single list
     for bundle in schedule_sorted:
         instr_to_bundle.extend(bundle)
 
@@ -38,25 +40,10 @@ def register_loop(schedule, parsedInstruction, dependencyTable):
 
         print(f"Loop dep: {loop_dep}")
 
-    
+    print(f"Loop dep: {loop_dep}")
+    print(f"Reg transform: {reg_transform}")
     # Second pass: update all sources to the newest available register
-    for instr in instr_to_bundle:
-        # Helper to update a single field
-        def update_field(field_name):
-            if instr[field_name] and instr[field_name].startswith("x"):
-                old = instr[field_name]
-                if old in reg_transform:
-                    for new_reg, addr in reg_transform[old]:
-                        if instr["instrAddress"] > addr:
-                            instr[field_name] = new_reg
-                            modify_dependency_table(dependencyTable, instr, new_reg, old, loop_dep)
-
-        update_field("dest") if instr["opcode"] == "st" else None
-        update_field("src1")
-        update_field("src2")
-
-        # Update memory sources
-        def update_mem_src(mem_field, mem_field2):
+    def update_mem_src(mem_field, mem_field2):
             if instr[mem_field]:
                 start = instr[mem_field].find('(')
                 end = instr[mem_field].find(')')
@@ -67,11 +54,33 @@ def register_loop(schedule, parsedInstruction, dependencyTable):
                             if instr["instrAddress"] > addr:
                                 new_reg = instr[mem_field2]
                                 instr[mem_field] = instr[mem_field].replace(reg_in_mem, new_reg)
-                                print(f"Instruction: {instr['instrAddress']}")
-                                print(f"\t{instr[mem_field]} -> {new_reg}")
+                                
                                 modify_dependency_table(dependencyTable, instr, new_reg, reg_in_mem, loop_dep)
+
+    def update_field(field_name):
+                if instr[field_name] and instr[field_name].startswith("x"):
+                    old = instr[field_name]
+                    if old in reg_transform:
+                        for new_reg, addr in reg_transform[old]:
+                            if instr["instrAddress"] > addr:
+                                instr[field_name] = new_reg
+                                modify_dependency_table(dependencyTable, instr, new_reg, old, loop_dep)
+
+    for instr in instr_to_bundle:
+        # Helper to update a single field
+        print("==========================")
+        print("BEFORE")
+        print("\t",loop_dep)
+        update_field("dest") if instr["opcode"] == "st" else None
+        update_field("src1")
+        update_field("src2")
+         # Update memory sources
+        
         update_mem_src("memSrc1", "src1")
         update_mem_src("memSrc2", "src2")
+        print("AFTER")
+        print("\t",loop_dep)
+
         
     loop_bundle_idx = next(
         (i for i, bundle in enumerate(schedule_sorted) for instr in bundle if instr["opcode"] == "loop"),
@@ -134,7 +143,7 @@ def modify_dependency_table(dependencyTable, instr, new_value, old_value, loop_d
     """
     for i in dependencyTable:
         for idx, j in enumerate(i["interloopDep"]):
-            if j[0] == instr["instrAddress"] and j[1] == old_value:
+            if j[0] == instr["instrAddress"] :
                 # Update the tuple in-place
                 i["interloopDep"][idx] = (instr["instrAddress"], new_value)
                 for k in loop_dep:
@@ -154,6 +163,8 @@ def compute_min_delay_mov(parsedInstruction, schedule, instruction, loop_index )
                 
                 delay = max((compute_delay(0,instr)+idx)-loop_index,delay)#Compute the delay with respect to the last bundle, so how many bundle we would need to add
     return delay
+
+
 def insert_movs_before_loop(parsedInstruction, interloop_movs):
     # Find index of the first loop instruction 
     loop_index = next(
@@ -197,8 +208,6 @@ def convert_back_to_register(schedule, parsedInstruction):
                 bundle.append(instr_data)
         new_schedule.append(bundle)
     return new_schedule
-
-
 
 # [' mov LC, 100', ' mov x1, 0x1000', ' nop', ' nop', ' nop']
 # [' mov x2, 1', ' mov x3, 25', ' nop', ' nop', ' nop']

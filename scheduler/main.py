@@ -40,8 +40,7 @@ def main():
     loopScheduler = simple_loop(dependencyTable, parsedInstruction)
     print("\n=== Loop Scheduler ===")
     print_schedule(loopScheduler)
-    for i in parsedInstruction:
-        print(i)
+    
     (schedule, parsedInstruction) = register_loop(loopScheduler, parsedInstruction, dependencyTable)
     
     json2 = convert_loop_to_json(parsedInstruction, schedule)
