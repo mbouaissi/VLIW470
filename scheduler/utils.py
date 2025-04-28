@@ -153,11 +153,11 @@ def convert_loop_to_json(parsedInstruction, schedule):
             elif opcode in ["ld", "st"]:
                 mems.append(instr)
             elif opcode == "loop":
-                for idx, bundle2 in enumerate(schedule):
-                    for i in bundle2["instructions"]:
-                        i = instr_map.get(i)
-                        if i["instrAddress"] == int(instr["dest"]):
-                            instr["dest"] = idx
+                # for idx, bundle2 in enumerate(schedule):
+                #     for i in bundle2["instructions"]:
+                #         i = instr_map.get(i)
+                #         if i["instrAddress"] == int(instr["dest"]):
+                #             instr["dest"] = idx
                 branch.append(instr)
 
         # fill slots
