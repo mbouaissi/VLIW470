@@ -2,9 +2,6 @@ from utils import *
 
 def register_loop(schedule, parsedInstruction, dependencyTable):
     
-    print("BEFORE MOVS")
-    for i in parsedInstruction:
-        print(i)
     schedule_with_reg = convert_back_to_register(schedule, parsedInstruction)
     schedule_sorted = sort_instructions_by_unit(schedule_with_reg)
 
@@ -89,9 +86,9 @@ def register_loop(schedule, parsedInstruction, dependencyTable):
         index_to_insert = instr["instrAddress"]
         break
     
-    
     for renamed_reg, orig in loop_dep.items():
         if orig and orig != renamed_reg:
+            print(f"Adding mov for {orig} to {renamed_reg}")
             index_to_insert += 1
             mov_instr = {
                 "instrAddress": index_to_insert ,
@@ -106,9 +103,6 @@ def register_loop(schedule, parsedInstruction, dependencyTable):
 
                 
     parsedInstruction.extend(interloop_movs)
-    print("AFTER MOVS")
-    for i in parsedInstruction:
-        print(i)
     for i in interloop_movs:
         delay = compute_min_delay_mov(parsedInstruction, schedule_sorted, i, loop_bundle_idx)
         if schedule[loop_bundle_idx]["ALU"]< unit_limit["ALU"] and delay == 0:

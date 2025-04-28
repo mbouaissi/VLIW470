@@ -60,23 +60,6 @@ def dependency_analysis(parsed):
 
     return (latest_timestamp, only_registers, only_timestamp)
 
-# def detect_local_dependencies(parsed, dependency_table):
-#     """
-#     Detect local dependencies within the same block.
-#     """
-#     currentBlock = "BB0"
-#     for i, instr in enumerate(parsed):
-#         if instr["instrAddress"] == -1:
-#             currentBlock = instr["opcode"]
-#             continue
-#         newBlock = "BB0"
-#         for j, later_instr in enumerate(parsed[:i]):
-#             if later_instr["instrAddress"] == -1:
-#                 newBlock = later_instr["opcode"]
-#                 continue
-#             if (later_instr["dest"] in get_consumer_register(instr) and later_instr["dest"] ) and currentBlock == newBlock and later_instr["dest"] != None:
-#                 dependency_table[i]["localDependency"].append((later_instr["instrAddress"], later_instr["dest"]))
-
 def detect_local_dependencies(parsed, dependency_table):
     """
     Detect local dependencies within the same block.
@@ -100,50 +83,6 @@ def detect_local_dependencies(parsed, dependency_table):
             if (intersection and instr["dest"] ):
                 dependency_table[i]["localDependency"].append((before_instr["instrAddress"], before_instr["dest"]))
     
-    
-# def detect_interloop_dependencies(parsed, dependency_table):
-#     """
-#     Detect interloop in different blocks or iteration.
-#     """
-#     currentBlock = "BB0"
-#     for i , instr in enumerate(parsed):
-#         if instr["instrAddress"] == -1:
-#             currentBlock = instr["opcode"]
-#             continue
-#         if currentBlock != "BB1":
-#             continue
-#         newBlock = "BB0"
-#         toAdd1 = -1
-#         toAdd2 = -1
-#         dest = -1
-#         for j, later_instr in enumerate(parsed):
-#             dest = later_instr["dest"]
-#             if later_instr["instrAddress"] == -1:
-#                 newBlock = later_instr["opcode"]
-#                 continue
-            
-            
-#             producers = get_producer_register(later_instr)
-#             consumers = get_consumer_register(instr)
-
-#             intersection = producers & consumers
-            
-#             if (later_instr["dest"] in get_consumer_register(instr) and later_instr["dest"]):
-#                 match newBlock:
-#                     case "BB0":
-#                             toAdd1 = (later_instr["instrAddress"], later_instr["dest"])
-#                             continue
-#                     case "BB1":
-#                             if (later_instr["instrAddress"]>=instr['instrAddress']):
-#                                 toAdd2 = (later_instr["instrAddress"], later_instr["dest"])
-#                             continue
-#                     case "BB2":
-#                         break
-#         if toAdd2 != -1:
-#             dependency_table[i]["interloopDep"].append(toAdd2)
-#             if toAdd1 != -1:
-#                 dependency_table[i]["interloopDep"].append(toAdd1)
-
 def detect_interloop_dependencies(parsed, dependency_table):
     """
     Detect interloop in different blocks or iteration.
@@ -309,7 +248,7 @@ def get_consumer_register(instr):
 
 def get_producer_register(instr):
     regs = []
-    if instr["opcode"] == "str":
+    if instr["opcode"] == "st":
         return set()
     if instr["dest"] and instr["dest"].startswith("x") : 
         regs.append(instr["dest"])
