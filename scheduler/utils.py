@@ -33,13 +33,15 @@ def print_schedule(schedule):
         print(f"  Instructions: {bundle['instructions']}")
     print("===========================\n")
 
-
+# XXX: nothing to FU 2 (shouldn't mulu go to 2)?
+# Try to regroup the instructions per slot type
+# Too simplistic as may overwrite?
 def format_instructions_schedule(schedule):
     formatted_schedule = []
     
     for cycle in schedule:
         # Start with 5 "nop" slots
-        formatted_cycle = [" nop"] * 5
+        formatted_cycle = ["nop"] * 5
         
         for instr in cycle:
             op = instr['opcode']
@@ -53,34 +55,33 @@ def format_instructions_schedule(schedule):
                 formatted_cycle[cycle.index(instr)] = line
             elif op == "addi":
                 line = f" addi {dest}, {src1}, {src2}"
-                formatted_cycle[0] = line  # Assume ALU
+                formatted_cycle[0] = line  # ALU
             elif op == "ld":
                 line = f" ld {dest}, {mem}"
-                formatted_cycle[3] = line  # MEM slot
+                formatted_cycle[3] = line  # MEM
             elif op == "st":
                 line = f" st {dest}, {mem}"
-                formatted_cycle[3] = line  # MEM slot
+                formatted_cycle[3] = line  # MEM
             elif op == "mulu":
                 line = f" mulu {dest}, {src1}, {src2}"
-                formatted_cycle[1] = line  # MULT slot
+                formatted_cycle[1] = line  # MULT
             elif op == "loop":
                 line = f" loop {dest}"
-                formatted_cycle[4] = line  # BRANCH slot
+                formatted_cycle[4] = line  # BRANCH
             else:
                 line = f" {op} {dest}, {src1}, {src2}"
-                formatted_cycle[0] = line  # default to ALU
+                formatted_cycle[0] = line  # default to ALU (sub + add)
 
         formatted_schedule.append(formatted_cycle)
 
     return formatted_schedule
 
 
-
 def sort_instructions_by_unit(schedule):
     def get_unit_priority(opcode):
-        if opcode in ['mov', 'addi']:
+        if opcode in ['mov', 'addi', 'add', 'sub']:
             return 0  # ALU
-        elif opcode in ['mulu', 'mul']:
+        elif opcode in ['mulu']:
             return 1  # MULT
         elif opcode in ['ld', 'st']:
             return 2  # MEM
@@ -96,7 +97,6 @@ def sort_instructions_by_unit(schedule):
     return sorted_schedule
 
 
-
 def get_unit_type(instr):
     if instr["opcode"] in ["add", "addi", "sub", "mov"]:
         return "ALU"
@@ -104,7 +104,7 @@ def get_unit_type(instr):
         return "MULT"
     elif instr["opcode"] in ["ld", "st"]:
         return "MEM"
-    elif instr["opcode"].startswith("loop") or instr["opcode"].startswith("loop.pip"):
+    elif instr["opcode"] in ["loop", "loop.pip"]:
         return "BRANCH"
     return "BB"
 
@@ -148,7 +148,7 @@ def convert_loop_to_json(parsedInstruction, schedule):
             opcode = instr["opcode"]
             if opcode in ["mov", "add", "addi", "sub"]:
                 alus.append(instr)
-            elif opcode in ["mulu", "mul"]:
+            elif opcode in ["mulu"]:
                 mults.append(instr)
             elif opcode in ["ld", "st"]:
                 mems.append(instr)

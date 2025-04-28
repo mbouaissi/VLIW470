@@ -1,7 +1,6 @@
 import re
 import copy
 
-
 from utils import *
 
 def detector(instruction, needToParse = True):
@@ -60,6 +59,7 @@ def dependency_analysis(parsed):
 
     return (latest_timestamp, only_registers, only_timestamp)
 
+# Different loop iterations are considered different basic blocks (verify correct implementation!)
 def detect_local_dependencies(parsed, dependency_table):
     """
     Detect local dependencies within the same block.
@@ -92,7 +92,7 @@ def detect_interloop_dependencies(parsed, dependency_table):
         if instr["instrAddress"] == -1:
             currentBlock = instr["opcode"]
             continue
-        if currentBlock != "BB1":
+        if currentBlock != "BB1": # Consumer has to be in loop body
             continue
         newBlock = "BB0"
         toAdd1 = -1
@@ -121,6 +121,7 @@ def detect_interloop_dependencies(parsed, dependency_table):
                             break
         if toAdd2 != -1:
             dependency_table[i]["interloopDep"].append(toAdd2)
+        # Keep an eye on XXX
         if toAdd1 != -1:
             dependency_table[i]["interloopDep"].append(toAdd1)
 def detect_loop_invariant_dependencies(parsed, dependency_table):
@@ -179,7 +180,7 @@ def clean_dependencies(dep_table):
 
 def clean_dependencies_latest_timestamp(dep_table):
     for entry in dep_table:
-        for key in ["localDependency",  "loopInvarDep"]:
+        for key in ["localDependency", "loopInvarDep"]:
             reg_map = {}  # reg -> latest instr address
             for instr_addr, reg in entry[key]:
                 if reg not in reg_map or instr_addr > reg_map[reg]:
@@ -187,7 +188,7 @@ def clean_dependencies_latest_timestamp(dep_table):
             # Keep (timestamp, register) pairs, sorted if needed
             entry[key] = [(addr, reg) for reg, addr in reg_map.items()]
     for entry in dep_table:
-        for key in [  "postLoopDep"]:
+        for key in ["postLoopDep"]:
             reg_map = {}  # reg -> latest instr address
             for instr_addr, reg in entry[key]:
                 if reg not in reg_map or instr_addr > reg_map[reg]:
