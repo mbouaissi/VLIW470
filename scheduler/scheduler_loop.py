@@ -38,7 +38,6 @@ def add_delay_BB0_dependency(scheduleBB0, scheduleBB1, dependencyTable, parsedIn
                     # Check if the dependency is in BB0
                     for idxBB0, instrBB0 in enumerate(scheduleBB0):
                         for instBB0 in instrBB0["instructions"]:
-                            print("dep",dep)
                             if dep[0] == instBB0:#Here, we do dep[0] to take the instruction ID, dep return (id, register)
                                 instructionBB0 = get_instruction_with_id(parsedInstruction,instBB0)
                                 delay = compute_delay(0, instructionBB0)
@@ -157,7 +156,6 @@ def can_schedule_instruction(schedule, dependencyTable, instr, idx, instructions
     for dep_type in ["localDependency", "loopInvarDep", "postLoopDep", "interloopDep"]:
         for dep in dependency[dep_type]:
             for i in range(len(schedule)):
-                print("dep",dep)
                 if dep[0] in schedule[i]["instructions"]:
                     delay = compute_delay(i, get_instruction_with_id(instructions,dep[0]))  # pass instr directly
                     min_delay = max(min_delay, delay)

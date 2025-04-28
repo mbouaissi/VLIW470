@@ -1,6 +1,10 @@
 from utils import *
 
 def register_loop(schedule, parsedInstruction, dependencyTable):
+    
+    print("BEFORE MOVS")
+    for i in parsedInstruction:
+        print(i)
     schedule_with_reg = convert_back_to_register(schedule, parsedInstruction)
     schedule_sorted = sort_instructions_by_unit(schedule_with_reg)
 
@@ -10,8 +14,8 @@ def register_loop(schedule, parsedInstruction, dependencyTable):
     instr_to_bundle = []
 
     for i in dependencyTable:
-        print("Interloop dep: ", i["interloopDep"])
-    # Flatten the bundles into a single list
+        print(f"Interloop dep: {i['interloopDep']} for address {i['instrAddress']} and dest {get_instruction_with_id(parsedInstruction, i['instrAddress'])['dest']}")
+# Flatten the bundles into a single list
     for bundle in schedule_sorted:
         instr_to_bundle.extend(bundle)
 
@@ -19,13 +23,12 @@ def register_loop(schedule, parsedInstruction, dependencyTable):
     for idx, instr in enumerate(instr_to_bundle):
         if instr["opcode"] != "st" and instr["dest"] and instr["dest"].startswith("x"):
             new_reg = f"x{start_index}"
-            loop_dep.setdefault(new_reg, [])
-
+            loop_dep[new_reg] = None
             # Track dependency if dest == src1 or src2
             if instr["dest"] == instr["src1"]:
-                loop_dep[new_reg].append(instr["src1"])
+                loop_dep[new_reg] = instr["src1"]  # overwrite instead of appending
             if instr["dest"] == instr["src2"]:
-                loop_dep[new_reg].append(instr["src2"])
+                loop_dep[new_reg] = instr["src2"]  # overwrite instead of appending
 
             # Record the transformation
             reg_transform.setdefault(instr["dest"], []).append((new_reg, instr["instrAddress"]))
@@ -79,24 +82,33 @@ def register_loop(schedule, parsedInstruction, dependencyTable):
     )
     
     interloop_movs = []
-    index_to_insert = 0
-    for (renamed_reg, original_regs) in(loop_dep.items()):
-        for orig in original_regs:
-            if orig != renamed_reg:
-                index_to_insert += 1
-                mov_instr = {
-                    "instrAddress": len(schedule) + index_to_insert + 2,#+2 to take in account the BB
-                    "opcode": "mov",
-                    "dest": orig,       
-                    "src1": renamed_reg, 
-                    "src2": None,
-                    "memSrc1": None,
-                    "memSrc2": None,
-                }
-                interloop_movs.append(mov_instr)
+
+    for i, instr in reversed(list(enumerate(parsedInstruction))):
+        if instr["opcode"].startswith("BB"):
+            continue
+        index_to_insert = instr["instrAddress"]
+        break
+    
+    
+    for renamed_reg, orig in loop_dep.items():
+        if orig and orig != renamed_reg:
+            index_to_insert += 1
+            mov_instr = {
+                "instrAddress": index_to_insert ,
+                "opcode": "mov",
+                "dest": orig,       
+                "src1": renamed_reg, 
+                "src2": None,
+                "memSrc1": None,
+                "memSrc2": None,
+            }
+            interloop_movs.append(mov_instr)
+
                 
     parsedInstruction.extend(interloop_movs)
-    
+    print("AFTER MOVS")
+    for i in parsedInstruction:
+        print(i)
     for i in interloop_movs:
         delay = compute_min_delay_mov(parsedInstruction, schedule_sorted, i, loop_bundle_idx)
         if schedule[loop_bundle_idx]["ALU"]< unit_limit["ALU"] and delay == 0:
@@ -175,7 +187,8 @@ def insert_movs_before_loop(parsedInstruction, interloop_movs):
 
 def update_loop_dep_dict(loop_dep, old, new, key):
     value = loop_dep.get(key)
-    loop_dep[key] = [new if v == old else v for v in value]
+    if value == old:
+        loop_dep[key] = new
 
 def convert_back_to_register(schedule, parsedInstruction):
     """
@@ -190,3 +203,18 @@ def convert_back_to_register(schedule, parsedInstruction):
                 bundle.append(instr_data)
         new_schedule.append(bundle)
     return new_schedule
+
+
+
+# [' mov LC, 100', ' mov x1, 0x1000', ' nop', ' nop', ' nop']
+# [' mov x2, 1', ' mov x3, 25', ' nop', ' nop', ' nop']
+# [' addi x4, x1, 1', ' nop', ' nop', ' ld x5, 0(x1)', ' nop']
+# [' nop', ' nop', ' mulu x6, x5, x3', ' nop', ' nop']
+# [' nop', ' nop', ' mulu x7, x2, x5', ' nop', ' nop']
+# [' nop', ' nop', ' nop', ' nop', ' nop']
+# [' mov [[[0]]], x1', ' mov [[[0]]], x2', ' nop', ' st x6, 0(x1)', ' nop']
+# [' mov [[[0]]], x3', " mov [[['x1']]], x4", ' nop', ' nop', ' nop']
+# [' mov [[[0]]], x5', ' mov [[[0]]], x6', ' nop', ' nop', ' nop']
+# [" mov [[['x3']]], x7", ' nop', ' nop', ' nop', ' loop 2']
+# [' nop', ' nop', ' nop', ' st x7, 0(x4)', ' nop']
+#  ~/epfl/comparch/VLIW470   main ±  
