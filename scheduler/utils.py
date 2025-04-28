@@ -1,4 +1,5 @@
 import re
+import struct
 
 def parse_mem_operand(operand):
     """
@@ -153,11 +154,6 @@ def convert_loop_to_json(parsedInstruction, schedule):
             elif opcode in ["ld", "st"]:
                 mems.append(instr)
             elif opcode == "loop":
-                # for idx, bundle2 in enumerate(schedule):
-                #     for i in bundle2["instructions"]:
-                #         i = instr_map.get(i)
-                #         if i["instrAddress"] == int(instr["dest"]):
-                #             instr["dest"] = idx
                 branch.append(instr)
 
         # fill slots
@@ -182,7 +178,17 @@ def format_instruction(instr):
     src1 = instr.get("src1")
     src2 = instr.get("src2")
     mem = instr.get("memSrc1")
-    
+
+    # Helper to convert hex immediates to int string
+    def format_operand(op):
+        if isinstance(op, str) and op.startswith("0x"):
+            return str(int(op, 16))  # Convert hex to decimal string
+        return op  # Otherwise return as is
+
+    # Apply to src1 and src2
+    src1 = format_operand(src1)
+    src2 = format_operand(src2)
+
     if opcode == "loop":
         return f" {opcode} {dest}"
     elif opcode in ["ld", "st"] and mem:
@@ -193,6 +199,7 @@ def format_instruction(instr):
         return f" {opcode} {dest}, {src1}"
     else:
         return f" {opcode} {dest}"
+
 
 def empty_block(name):
     return {"instrAddress": -1, "opcode": name, "dest": None, "src1": None, "src2": None, "memSrc1": None, "memSrc2": None}
@@ -213,3 +220,5 @@ unit_limit = {
         "MEM": 1,
         "BRANCH": 1
     }
+
+

@@ -9,8 +9,8 @@ def main():
     args = sys.argv[1:]
 
     if len(args) < 3 or len(args) > 4:
-        print("Usage: python simulator.py input.json outputLoop.json outputLoopPip.json [--debug]")
-        return
+        raise ValueError("Usage: python main.py input.json outputLoop.json outputLoopPip.json [--debug]")
+
 
     input = args[0]
     outputLoop = args[1]
