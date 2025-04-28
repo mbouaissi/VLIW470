@@ -20,16 +20,16 @@ def register_loop(schedule, parsedInstructions, dependencyTable):
         if instruction["opcode"] == "loop":
             no_more_interloop_possible = True
             continue
-        print(f"Processing instruction {idx}: {instruction}")
         if instruction["opcode"] != "st" and instruction["dest"] and instruction["dest"].startswith("x"):
             new_register = f"x{reg_rename_counter}"
             interloop_dependency_map[new_register] = None
             print(f"Renaming {instruction['dest']} to {new_register}")
+            
             if instruction["dest"] == instruction["src1"] and not no_more_interloop_possible:
                 interloop_dependency_map[new_register] = instruction["src1"]
             if instruction["dest"] == instruction["src2"]and not no_more_interloop_possible:
                 interloop_dependency_map[new_register] = instruction["src2"]
-
+            
             register_renaming_map.setdefault(instruction["dest"], []).append((new_register, instruction["instrAddress"]))
             instruction["dest"] = new_register
             reg_rename_counter += 1
@@ -58,7 +58,7 @@ def register_loop(schedule, parsedInstructions, dependencyTable):
             if old_reg in register_renaming_map:
                 for new_reg, addr in register_renaming_map[old_reg]:
                     if instruction["instrAddress"] > addr :
-                        instruction[field_name] = new_reg                            
+                        instruction[field_name] = new_reg        
                         for tuple in get_instruction_with_id(dependencyTable,instruction["instrAddress"])["interloopDep"]:
                             if  addr == tuple[0]:
                                 update_interloop_dependency_table(dependencyTable, instruction, new_reg, old_reg, interloop_dependency_map)
@@ -177,3 +177,15 @@ def update_interloop_dependency_table(dependencyTable, instruction, new_value, o
 def propagate_register_update_in_dependency_map(interloop_dependency_map, old_register, new_register, key):
     if interloop_dependency_map.get(key) == old_register:
         interloop_dependency_map[key] = new_register
+# [
+#     "mov LC, 100",
+#     "mov x2, 10",
+#     "mov x10, 0",
+#     "ld x5, 0x1000(x10)",
+#     "add x5, x5, x2",
+#     "st x5, 0x1000(x10)",
+#     "ld x6, 0x2000(x10)",
+#     "sub x6, x6, x2",
+#     "st x6, 0x2000(x10)",
+#     "loop 3"
+# ]
