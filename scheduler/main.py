@@ -28,13 +28,15 @@ def main():
         instructions = json.load(f)
         
     (parsedInstruction, dependencyTable) = detector(instructions)
-    print(dependencyTable)
+    
     print("\n=== Dependency Table ===")
     for i in dependencyTable:
         print("==============================")
         for j in i:
             print(j)    
-    dependencyTable = dependencyTable[2]
+            
+    
+    dependencyTable = dependencyTable[0]
     loopScheduler = simple_loop(dependencyTable, parsedInstruction)
     print("\n=== Loop Scheduler ===")
     print_schedule(loopScheduler)

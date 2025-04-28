@@ -17,17 +17,15 @@ def simple_loop(dependencyTable, parsedInstruction):
     # Schedule BB0 
     schedule += schedule_basic_block(parsedInstruction[:bb1_start], dependencyTable,unit_limit,parsedInstruction)
     
-    if bb1_start is len(parsedInstruction):
+    if bb1_start == len(parsedInstruction):
         return schedule
     
     # Schedule BB1 
     scheduleBB1 = schedule_bb1(parsedInstruction[bb1_start+1:bb2_start], dependencyTable, unit_limit, parsedInstruction)
-
     add_delay_BB0_dependency(schedule, scheduleBB1, dependencyTable, parsedInstruction)
-            
+    
+    # Schedule BB2 
     scheduleBB2 = schedule_basic_block(parsedInstruction[bb2_start+1:], dependencyTable,unit_limit,parsedInstruction) if bb2_start  else []
-
-    # Schedule BB2
     add_delay_BB2_dependency( scheduleBB1,scheduleBB2, dependencyTable, parsedInstruction)
     
     return schedule + scheduleBB1 + scheduleBB2
@@ -40,10 +38,9 @@ def add_delay_BB0_dependency(scheduleBB0, scheduleBB1, dependencyTable, parsedIn
                     # Check if the dependency is in BB0
                     for idxBB0, instrBB0 in enumerate(scheduleBB0):
                         for instBB0 in instrBB0["instructions"]:
-                            if dep == instBB0:
+                            if dep[0] == instBB0:#Here, we do dep[0] to take the instruction ID, dep return (id, register)
                                 instructionBB0 = get_instruction_with_id(parsedInstruction,instBB0)
                                 delay = compute_delay(0, instructionBB0)
-                                
                                 while delay>compute_relative_distance(idxBB0, idxBB1, scheduleBB0):
                                     new_bundle = init_bundle()
                                     scheduleBB0.append(new_bundle)
@@ -59,7 +56,7 @@ def add_delay_BB2_dependency( scheduleBB1,scheduleBB2, dependencyTable, parsedIn
                                    
                     for idxBB1, instrBB1 in enumerate(scheduleBB1):
                         for instBB1 in instrBB1["instructions"]:
-                            if dep == instBB1:
+                            if dep[0] == instBB1:
                                 instructionBB1 = get_instruction_with_id(parsedInstruction,instBB1)
                                 delay = compute_delay(0, instructionBB1)
                                 #Then we adjust the bubbles accrordingly
@@ -70,10 +67,8 @@ def add_delay_BB2_dependency( scheduleBB1,scheduleBB2, dependencyTable, parsedIn
                                     
                                     
 def compute_relative_distance(idxBB0, idxBB1, scheduleBB0):
-    dist0 = len(scheduleBB0) - idxBB0
-    dist1 =  idxBB1
-    
-    return dist0 + dist1
+    return (len(scheduleBB0) - idxBB0) + idxBB1
+
 
 def schedule_basic_block(instructions, dependencyTable, unit_limit, full_instr_list):
     schedule = []
@@ -156,14 +151,13 @@ def can_schedule_instruction(schedule, dependencyTable, instr, idx, instructions
     based on its dependencies and instruction latency.
     """
     dependency = dependencyTable[idx]
-    
     min_delay = 0
     # Check each type of dependency
     for dep_type in ["localDependency", "loopInvarDep", "postLoopDep", "interloopDep"]:
         for dep in dependency[dep_type]:
             for i in range(len(schedule)):
-                if dep in schedule[i]["instructions"]:
-                    delay = compute_delay(i, get_instruction_with_id(instructions,dep))  # pass instr directly
+                if dep[0] in schedule[i]["instructions"]:
+                    delay = compute_delay(i, get_instruction_with_id(instructions,dep[0]))  # pass instr directly
                     min_delay = max(min_delay, delay)
 
     return min_delay

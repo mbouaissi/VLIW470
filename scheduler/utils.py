@@ -194,6 +194,10 @@ def format_instruction(instr):
     else:
         return f" {opcode} {dest}"
 
+def empty_block(name):
+    return {"instrAddress": -1, "opcode": name, "dest": None, "src1": None, "src2": None, "memSrc1": None, "memSrc2": None}
+
+
 def init_bundle():
     return {
         "ALU": 0,
