@@ -29,7 +29,6 @@ def main():
         
     (parsedInstruction, dependencyTable) = detector(instructions)
     
-    print(dependencyTable)
     print("\n=== Dependency Table ===")
     for i in dependencyTable:
         print("==============================")
