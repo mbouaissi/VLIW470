@@ -36,7 +36,7 @@ def main():
             print(j)    
             
     
-    dependencyTable = dependencyTable[2]
+    dependencyTable = dependencyTable[0]
     loopScheduler = simple_loop(dependencyTable, parsedInstruction)
     print("\n=== Loop Scheduler ===")
     print_schedule(loopScheduler)

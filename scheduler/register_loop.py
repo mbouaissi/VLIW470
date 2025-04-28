@@ -10,7 +10,7 @@ def register_loop(schedule, parsedInstruction, dependencyTable):
     instr_to_bundle = []
 
     for i in dependencyTable:
-        print("Interloop dep: ", i)
+        print("Interloop dep: ", i["interloopDep"])
     # Flatten the bundles into a single list
     for bundle in schedule_sorted:
         instr_to_bundle.extend(bundle)
@@ -38,6 +38,7 @@ def register_loop(schedule, parsedInstruction, dependencyTable):
 
         print(f"Loop dep: {loop_dep}")
 
+    
     # Second pass: update all sources to the newest available register
     for instr in instr_to_bundle:
         # Helper to update a single field

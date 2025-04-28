@@ -38,10 +38,10 @@ def add_delay_BB0_dependency(scheduleBB0, scheduleBB1, dependencyTable, parsedIn
                     # Check if the dependency is in BB0
                     for idxBB0, instrBB0 in enumerate(scheduleBB0):
                         for instBB0 in instrBB0["instructions"]:
-                            if dep == instBB0:
+                            print("dep",dep)
+                            if dep[0] == instBB0:#Here, we do dep[0] to take the instruction ID, dep return (id, register)
                                 instructionBB0 = get_instruction_with_id(parsedInstruction,instBB0)
                                 delay = compute_delay(0, instructionBB0)
-                                
                                 while delay>compute_relative_distance(idxBB0, idxBB1, scheduleBB0):
                                     new_bundle = init_bundle()
                                     scheduleBB0.append(new_bundle)
@@ -57,7 +57,7 @@ def add_delay_BB2_dependency( scheduleBB1,scheduleBB2, dependencyTable, parsedIn
                                    
                     for idxBB1, instrBB1 in enumerate(scheduleBB1):
                         for instBB1 in instrBB1["instructions"]:
-                            if dep == instBB1:
+                            if dep[0] == instBB1:
                                 instructionBB1 = get_instruction_with_id(parsedInstruction,instBB1)
                                 delay = compute_delay(0, instructionBB1)
                                 #Then we adjust the bubbles accrordingly
@@ -157,8 +157,9 @@ def can_schedule_instruction(schedule, dependencyTable, instr, idx, instructions
     for dep_type in ["localDependency", "loopInvarDep", "postLoopDep", "interloopDep"]:
         for dep in dependency[dep_type]:
             for i in range(len(schedule)):
-                if dep in schedule[i]["instructions"]:
-                    delay = compute_delay(i, get_instruction_with_id(instructions,dep))  # pass instr directly
+                print("dep",dep)
+                if dep[0] in schedule[i]["instructions"]:
+                    delay = compute_delay(i, get_instruction_with_id(instructions,dep[0]))  # pass instr directly
                     min_delay = max(min_delay, delay)
 
     return min_delay

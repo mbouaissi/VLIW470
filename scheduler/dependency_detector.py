@@ -8,10 +8,6 @@ def detector(instruction, needToParse = True):
     parsed_instruction = instruction
     if  needToParse:
         parsed_instruction = parse_instruction(instruction)
-    print("\n=== Parsed Instructions ===")
-    for i in parsed_instruction:    
-        print(i)
-    
     dependency_analysis_result = dependency_analysis(parsed_instruction)
     return (parsed_instruction,dependency_analysis_result)
 
@@ -57,10 +53,6 @@ def dependency_analysis(parsed):
     detect_loop_invariant_dependencies(parsed, dependency_table)
     detect_post_loop_dependencies(parsed, dependency_table)
     
-    print("\n=== Dependency Table ===")
-    for i in dependency_table:
-        print(i)
-    print("\n=== Dependency Table ===")
     # Make a deep copy for each version
     latest_timestamp = clean_dependencies_latest_timestamp(copy.deepcopy(dependency_table))
     only_registers   = clean_dependencies_only_registers(copy.deepcopy(dependency_table))
@@ -104,9 +96,6 @@ def detect_local_dependencies(parsed, dependency_table):
             
             producers = get_producer_register(before_instr)
             consumers = get_consumer_register(instr)
-            print(f"instr: {instr['instrAddress']}, before_instr: {before_instr['instrAddress']}")
-            print(f"Producers: {producers}, Consumers: {consumers}")
-            
             intersection = producers & consumers
             if (intersection and instr["dest"] ):
                 dependency_table[i]["localDependency"].append((before_instr["instrAddress"], before_instr["dest"]))
@@ -169,9 +158,7 @@ def detect_interloop_dependencies(parsed, dependency_table):
         newBlock = "BB0"
         toAdd1 = -1
         toAdd2 = -1
-        dest = -1
         for j, later_instr in enumerate(parsed):
-            dest = later_instr["dest"]
             if later_instr["instrAddress"] == -1:
                 newBlock = later_instr["opcode"]
                 continue
