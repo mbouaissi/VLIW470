@@ -132,8 +132,8 @@ def detect_interloop_dependencies(parsed, dependency_table):
                             break
         if toAdd2 != -1:
             dependency_table[i]["interloopDep"].append(toAdd2)
-        if toAdd1 != -1:#becasue we could only have 1 dependency, and it wont be correct
-            dependency_table[i]["interloopDep"].append(toAdd1)
+            if toAdd1 != -1:#becasue we could only have 1 dependency, and it wont be correct
+                dependency_table[i]["interloopDep"].append(toAdd1)
 def detect_loop_invariant_dependencies(parsed, dependency_table):
     """
     Detect loop invariant dependencies.
