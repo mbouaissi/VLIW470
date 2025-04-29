@@ -93,61 +93,100 @@ def schedule_loop(block_instr, dependencyTable, unit_limit):
     II = bounded_ii(block_instr)
 
     # Create II bundles
-    schedule = [init_bundle() for _ in range(int(II)+3)]
+    schedule = [init_bundle()]
     
     for instr in block_instr[:-1]:
         op_class = get_unit_type(instr)
 
-        # Find the matching dependency
-        matching_dep = None
-        for dep in dependencyTable:
-            if dep['instrAddress'] == instr['instrAddress']:
-                matching_dep = dep
-                break  
+        # Find the matching dependency table line
+        matching_dep = next((dep for dep in dependencyTable if dep['instrAddress'] == instr['instrAddress']), None)
         
         latency = 0
+        scheduled = False  # Flag to check if we successfully scheduled it
+        i = 0
 
-        for i in range(int(II)+3):
+        while not scheduled:
+            if i >= len(schedule):
+                schedule.append(init_bundle())  # Add a new bundle if we ran out
+
+            bundle = schedule[i]
+
             if latency > 0:
                 latency -= 1
+                i += 1
                 continue
-            
 
-            if schedule[i][op_class] < unit_limit[op_class]: # Ensure resource available
-
+            if bundle[op_class] < unit_limit[op_class]:  # Check resource availability
                 conflict = False
-                if matching_dep:  # Ensure no dependency issue
+
+                if matching_dep:
                     for dep_type in ["localDependency", "interloopDep"]:
                         for (dep_instr_addr, _) in matching_dep[dep_type]:
-                            if dep_instr_addr in schedule[i]['instructions']:
-                                for guess in block_instr:
-                                    if guess['instrAddress'] == dep_instr_addr:
-                                        if guess['opcode'] == "mulu":
+                            if dep_instr_addr in bundle['instructions']:
+                                for dep_instr in block_instr:
+                                    if dep_instr['instrAddress'] == dep_instr_addr:
+                                        if dep_instr['opcode'] == "mulu":
                                             latency += 2
                                         break
-
                                 conflict = True
                                 break
 
+                if conflict: # If dependence blocks
+                    i += 1
+                    continue
 
-                if conflict:
-                    continue  # Conflict detected, try next cycle
-
-                # Update schedule
-                schedule[i]['instructions'].append(instr['instrAddress']) 
-                schedule[i][op_class] += 1 
-                break  # Done scheduling this instruction
+                # No conflict and resources are available: schedule the instruction
+                bundle['instructions'].append(instr['instrAddress'])
+                bundle[op_class] += 1
+                scheduled = True
             else:
-                continue # Not enough resources, try next cycle
+                i += 1  # Try next bundle
 
-    # Add branch to the end of the schedule     
-    schedule[-1]['instructions'].append(block_instr[-1]['instrAddress']) 
-    schedule[-1]["BRANCH"] += 1 
+    # Add the branch to the last bundle
+    schedule[-1]['instructions'].append(block_instr[-1]['instrAddress'])
+    schedule[-1]["BRANCH"] += 1
 
     print("====Schedule=====")
     print(schedule)
-    print("II value is:", II)
 
+    report = []
+
+    # For easy access
+    instr_map = {instr['instrAddress']: instr for instr in block_instr}
+
+    for bundle_idx, bundle in enumerate(schedule):
+        for instr_addr in bundle['instructions']:
+            # Get full instruction being tested
+            instr = instr_map[instr_addr]
+
+            # Find matching dependency entry
+            matching_dep = next((dep for dep in dependencyTable if dep['instrAddress'] == instr_addr), None)
+
+            if matching_dep:
+                for (dep_instr_addr, dep_latency) in matching_dep.get('interloopDep', []):
+                    dependent_bundle_idx = find_bundle_of_instr(dep_instr_addr, schedule)
+                    if dependent_bundle_idx is not None:
+                        dependent_instr = instr_map[dep_instr_addr]
+                        dependent_opcode = dependent_instr['opcode']
+
+                        report.append({
+                            'dependent_bundle_idx': dependent_bundle_idx,
+                            'dependent_opcode': dependent_opcode,
+                            'current_bundle_idx': bundle_idx,
+                        })
+    print("======Report=====")
+    print(report)
+    
+    for test in report:
+        if test['dependent_opcode'] == "mulu":
+            if (test['dependent_bundle_idx'] + 3 <= test['current_bundle_idx'] + II):
+                print("Test passed")
+            else:
+                print("Test failed")
+        elif (test['dependent_bundle_idx'] + 1 <= test['current_bundle_idx'] + II):
+            print("Test passed")
+        else:
+            print("Test failed")
     return schedule
 
 # Do the inequation to find about the correct II value

@@ -212,3 +212,10 @@ def count_operations_per_class(instructions):
             counts[unit] = 0
         counts[unit] += 1
     return counts
+
+def find_bundle_of_instr(instr_address, schedule):
+    """Finds the bundle index where an instruction is placed."""
+    for idx, bundle in enumerate(schedule):
+        if instr_address in bundle['instructions']:
+            return idx
+    return None  # Not found
