@@ -80,8 +80,7 @@ def register_loop(schedule, parsedInstructions, dependencyTable):
 
                     instruction["src2"] = new_reg_to_use
                     reg_rename_counter += 1
-    for i in flattened_schedule:
-        print(i)
+    print(f"Renaming222 ")
     # Second pass: Update sources to match new register names
     def update_memory_source(mem_field, mem_src_field):
         if instruction[mem_field]:
@@ -92,6 +91,8 @@ def register_loop(schedule, parsedInstructions, dependencyTable):
                 if reg_in_mem in register_renaming_map:
                     for new_reg, addr in register_renaming_map[reg_in_mem]:
                         if instruction["instrAddress"] > addr :
+                            
+                            print(instruction)  
                             new_reg_to_use = instruction[mem_src_field]
                             # Safely replace only inside the (reg) part of offset(reg)
                             start = instruction[mem_field].find('(')
@@ -109,20 +110,20 @@ def register_loop(schedule, parsedInstructions, dependencyTable):
             if old_reg in register_renaming_map:
                 for new_reg, addr in register_renaming_map[old_reg]:
                     if instruction["instrAddress"] > addr :
+                        print(instruction)
                         instruction[field_name] = new_reg        
                         for tuple in get_instruction_with_id(dependencyTable,instruction["instrAddress"])["interloopDep"]:
                             if  addr == tuple[0]:
                                 update_interloop_dependency_table(dependencyTable, instruction, new_reg, old_reg, interloop_dependency_map)
 
     for instruction in flattened_schedule:
-
-        if instruction["opcode"] == "st":
-            update_field("dest")
-        update_field("src1")
-        update_field("src2")
-        update_memory_source("memSrc1", "src1")
-        update_memory_source("memSrc2", "src2")
-
+            if instruction["opcode"] == "st":
+                update_field("dest")
+            update_field("src1")
+            update_field("src2")
+            update_memory_source("memSrc1", "src1")
+            update_memory_source("memSrc2", "src2")
+    print(f"Renaming222 {register_renaming_map}")
     # Find loop bundle index
     loop_bundle_index = next(
         (i for i, bundle in enumerate(schedule_sorted) for instr in bundle if instr["opcode"] == "loop"),
@@ -137,9 +138,8 @@ def register_loop(schedule, parsedInstructions, dependencyTable):
             continue
         insert_address = instruction["instrAddress"]
         break
-    for renamed_register, original in interloop_dependency_map.items():
-        print(f"Renaming {renamed_register} to {original}")
-        
+    
+    for renamed_register, original in interloop_dependency_map.items():        
         # Check if renamed_register actually has a dependency
         has_dependency = True
         if original and original != renamed_register and has_dependency:

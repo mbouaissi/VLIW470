@@ -34,8 +34,8 @@ def main():
     print("\n=== Dependency Table ===")
     for i in dependencyTable[0]:
         print(i)    
-            
-    
+    print("\n=== Dependency Table2 ===")
+        
     dependencyTable = dependencyTable[0]
     loopScheduler = simple_loop(dependencyTable, parsedInstruction)
     print("\n=== Loop Scheduler ===")
