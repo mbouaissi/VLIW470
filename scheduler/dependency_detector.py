@@ -264,11 +264,5 @@ def get_producer_register(instr):
         return set()
     if instr["dest"] and instr["dest"].startswith("x") : 
         regs.append(instr["dest"])
-    # if instr["opcode"] == "st":
-    #     # For store, both dest and src important
-    #     if instr["src1"] and instr["src1"].startswith("x"): 
-    #         regs.append(instr["src1"])
-    #     if instr["src2"] and instr["src2"].startswith("x"): 
-    #         regs.append(instr["src2"])
     
     return set(regs)

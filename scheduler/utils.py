@@ -142,6 +142,7 @@ def format_operand(op):
         return None
     if isinstance(op, str):
         # Check if it's a memory operand first
+        
         mem_match = re.match(r"(-?0x[0-9a-fA-F]+)\((x\d+)\)", op)
         if mem_match:
             offset_hex, base_reg = mem_match.groups()

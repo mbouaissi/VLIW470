@@ -46,7 +46,12 @@ def register_loop(schedule, parsedInstructions, dependencyTable):
                     for new_reg, addr in register_renaming_map[reg_in_mem]:
                         if instruction["instrAddress"] > addr :
                             new_reg_to_use = instruction[mem_src_field]
-                            instruction[mem_field] = instruction[mem_field].replace(reg_in_mem, new_reg_to_use)
+                            # Safely replace only inside the (reg) part of offset(reg)
+                            start = instruction[mem_field].find('(')
+                            end = instruction[mem_field].find(')')
+                            if start != -1 and end != -1:
+                                old = instruction[mem_field][start + 1:end]
+                                instruction[mem_field] = instruction[mem_field][:start + 1] + new_reg_to_use + instruction[mem_field][end:]
                             for tuple in get_instruction_with_id(dependencyTable,instruction["instrAddress"])["interloopDep"]:
                                 if  addr == tuple[0]:
                                     update_interloop_dependency_table(dependencyTable, instruction, new_reg_to_use, reg_in_mem, interloop_dependency_map)
@@ -90,14 +95,6 @@ def register_loop(schedule, parsedInstructions, dependencyTable):
         
         # Check if renamed_register actually has a dependency
         has_dependency = True
-        # for entry in dependencyTable:
-        #     for (dep_instr_addr, dep_reg) in entry.get("interloopDep", []):
-        #         if dep_reg == renamed_register:
-        #             has_dependency = True
-        #             break
-        #     if has_dependency:
-        #         break
-
         if original and original != renamed_register and has_dependency:
             insert_address += 1
             mov_instruction = {
@@ -196,16 +193,3 @@ def is_reg_in_dependency_table(dependencyTable, field, reg):
             if str(j[1]) == str(reg):
                 return True
     return False
-
-# [
-#     "mov LC, 100",
-#     "mov x2, 10",
-#     "mov x10, 0",
-#     "ld x5, 0x1000(x10)",
-#     "add x5, x5, x2",
-#     "st x5, 0x1000(x10)",
-#     "ld x6, 0x2000(x10)",
-#     "sub x6, x6, x2",
-#     "st x6, 0x2000(x10)",
-#     "loop 3"
-# ]
