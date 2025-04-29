@@ -26,7 +26,7 @@ def pip_loop(dependencyTable, instructions):
         return scheduleBB0
     
     # Schedule BB1 
-    scheduleBB1 = schedule_loop(instructions[bb1_start+1:bb2_start], dependencyTable, instructions)
+    scheduleBB1 = schedule_loop(instructions[bb1_start+1:bb2_start], dependencyTable, unit_limit)
     add_delay_BB0_dependency(scheduleBB0, scheduleBB1, dependencyTable, instructions)
     
     # Schedule BB2 
@@ -77,7 +77,7 @@ def schedule_non_loop(block_instr, dependencyTable, unit_limit, full_instr):
             
     return schedule
 
-def schedule_loop(block_instr, dependencyTable, full_instr):
+def schedule_loop(block_instr, dependencyTable, unit_limit):
     """
     Schedules instructions of a loop block based on "loop.pip" instruction based on resource availability and dependencies.
     
@@ -90,37 +90,67 @@ def schedule_loop(block_instr, dependencyTable, full_instr):
     Returns:
         list: List of scheduled bundles for the loop body.
     """
-    II = find_minimal_ii(block_instr, dependencyTable)
+    II = bounded_ii(block_instr)
 
-    schedule = []
+    # Create II bundles
+    schedule = [init_bundle() for _ in range(int(II)+3)]
     
-    for instr in block_instr:
-        global_idx = full_instr.index(instr)
-        unit = get_unit_type(instr)
-        if unit == "BB":
-            continue
-        
-        min_delay = can_schedule_instruction_loop(schedule, dependencyTable, global_idx, full_instr, II)
-        
-        while len(schedule) <= min_delay:
-            schedule.append(init_bundle())
-            
-        scheduled = False
-        for i in range(min_delay, len(schedule)):
-            if schedule[i][unit] < unit_limit[unit]:
-                schedule[i][unit] += 1
-                schedule[i]["instructions"].append(instr["instrAddress"])
-                scheduled = True
-                break
+    for instr in block_instr[:-1]:
+        op_class = get_unit_type(instr)
 
-        if not scheduled:
-            new_bundle = init_bundle()
-            new_bundle[unit] += 1
-            new_bundle["instructions"].append(instr["instrAddress"])
-            schedule.append(new_bundle)
+        # Find the matching dependency
+        matching_dep = None
+        for dep in dependencyTable:
+            if dep['instrAddress'] == instr['instrAddress']:
+                matching_dep = dep
+                break  
+        
+        latency = 0
+
+        for i in range(int(II)+3):
+            if latency > 0:
+                latency -= 1
+                continue
+            
+
+            if schedule[i][op_class] < unit_limit[op_class]: # Ensure resource available
+
+                conflict = False
+                if matching_dep:  # Ensure no dependency issue
+                    for dep_type in ["localDependency", "interloopDep"]:
+                        for (dep_instr_addr, _) in matching_dep[dep_type]:
+                            if dep_instr_addr in schedule[i]['instructions']:
+                                for guess in block_instr:
+                                    if guess['instrAddress'] == dep_instr_addr:
+                                        if guess['opcode'] == "mulu":
+                                            latency += 2
+                                        break
+
+                                conflict = True
+                                break
+
+
+                if conflict:
+                    continue  # Conflict detected, try next cycle
+
+                # Update schedule
+                schedule[i]['instructions'].append(instr['instrAddress']) 
+                schedule[i][op_class] += 1 
+                break  # Done scheduling this instruction
+            else:
+                continue # Not enough resources, try next cycle
+
+    # Add branch to the end of the schedule     
+    schedule[-1]['instructions'].append(block_instr[-1]['instrAddress']) 
+    schedule[-1]["BRANCH"] += 1 
+
+    print("====Schedule=====")
+    print(schedule)
+    print("II value is:", II)
 
     return schedule
 
+# Do the inequation to find about the correct II value
 
 def can_schedule_instruction(schedule, dependencyTable, idx, instructions):
     """
@@ -148,7 +178,7 @@ def can_schedule_instruction(schedule, dependencyTable, idx, instructions):
     return min_delay
 
 
-def find_minimal_ii(instructions, dependencyTable):
+def bounded_ii(instructions):
     """
     Finds the minimal II allowing a valid ASAP schedule.
     
