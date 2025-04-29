@@ -32,7 +32,25 @@ def register_loop(schedule, parsedInstructions, dependencyTable):
             register_renaming_map.setdefault(instruction["dest"], []).append((new_register, instruction["instrAddress"]))
             instruction["dest"] = new_register
             reg_rename_counter += 1
-
+    
+    for idx, instruction in enumerate(flattened_schedule):
+        print(f"Instruction {idx}: {instruction}")
+        if instruction["opcode"] == "ld" or instruction["opcode"] == "st":
+            start = instruction["memSrc1"].find('(')
+            end = instruction["memSrc1"].find(')')
+            start = instruction["memSrc1"].find('(')
+            end = instruction["memSrc1"].find(')')
+            if start != -1 and end != -1:
+                reg_in_mem = instruction["memSrc1"][start + 1:end]
+                if reg_in_mem not in register_renaming_map:
+                    new_reg_to_use = f"x{reg_rename_counter}"
+                    # Safely replace only inside the (reg) part of offset(reg)
+                    start = instruction["memSrc1"].find('(')
+                    end = instruction["memSrc1"].find(')')
+                    if start != -1 and end != -1:
+                        old = instruction["memSrc1"][start + 1:end]
+                        instruction["memSrc1"] = instruction["memSrc1"][:start + 1] + new_reg_to_use + instruction["memSrc1"][end:]
+                        reg_rename_counter += 1
     print(interloop_dependency_map)
 
     # Second pass: Update sources to match new register names
