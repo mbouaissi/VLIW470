@@ -15,7 +15,7 @@ def simple_loop(dependencyTable, parsedInstruction):
     bb2_start = next((i for i, instr in enumerate(parsedInstruction) if instr["opcode"] == "BB2"), None)
 
     # Schedule BB0 
-    schedule += schedule_basic_block(parsedInstruction[:bb1_start], dependencyTable,unit_limit,parsedInstruction)
+    schedule += schedule_basic_block(parsedInstruction[:bb1_start], dependencyTable, unit_limit, parsedInstruction)
     
     if bb1_start == len(parsedInstruction):
         return schedule
@@ -25,8 +25,8 @@ def simple_loop(dependencyTable, parsedInstruction):
     add_delay_BB0_dependency(schedule, scheduleBB1, dependencyTable, parsedInstruction)
     
     # Schedule BB2 
-    scheduleBB2 = schedule_basic_block(parsedInstruction[bb2_start+1:], dependencyTable,unit_limit,parsedInstruction) if bb2_start  else []
-    add_delay_BB2_dependency( scheduleBB1,scheduleBB2, dependencyTable, parsedInstruction)
+    scheduleBB2 = schedule_basic_block(parsedInstruction[bb2_start+1:], dependencyTable, unit_limit, parsedInstruction) if bb2_start else []
+    add_delay_BB2_dependency(scheduleBB1,scheduleBB2, dependencyTable, parsedInstruction)
     
     return schedule + scheduleBB1 + scheduleBB2
 
@@ -78,9 +78,7 @@ def schedule_basic_block(instructions, dependencyTable, unit_limit, full_instr_l
         if unit == "BB":
             continue
         
-        min_delay = can_schedule_instruction(schedule, dependencyTable, instr, global_idx, full_instr_list)
-
-        scheduled = False
+        min_delay = can_schedule_instruction(schedule, dependencyTable, global_idx, full_instr_list)
         
         while len(schedule) <= min_delay:
             schedule.append(init_bundle())
@@ -104,12 +102,13 @@ def schedule_basic_block(instructions, dependencyTable, unit_limit, full_instr_l
 def schedule_bb1(instructions, dependencyTable, unit_limit, full_instr_list):
     schedule = []
 
-    for local_idx, instr in enumerate(instructions):
+    for instr in instructions:
         global_idx = full_instr_list.index(instr)
         unit = get_unit_type(instr)
         #Schedule the jump as the last instruction, or skip if BB inst
         if unit == "BB":
             continue
+
         elif unit == "BRANCH":
             bundle = schedule[-1]
             if bundle[unit] < unit_limit[unit]:
@@ -123,7 +122,7 @@ def schedule_bb1(instructions, dependencyTable, unit_limit, full_instr_list):
             continue
         
         
-        min_delay = can_schedule_instruction(schedule, dependencyTable, instr, global_idx, full_instr_list)
+        min_delay = can_schedule_instruction(schedule, dependencyTable, global_idx, full_instr_list)
 
         scheduled = False
         
@@ -145,7 +144,7 @@ def schedule_bb1(instructions, dependencyTable, unit_limit, full_instr_list):
             schedule.append(new_bundle)
     return schedule
 
-def can_schedule_instruction(schedule, dependencyTable, instr, idx, instructions):
+def can_schedule_instruction(schedule, dependencyTable, idx, instructions):
     """
     Computes the earliest cycle an instruction can be scheduled at,
     based on its dependencies and instruction latency.
@@ -154,9 +153,9 @@ def can_schedule_instruction(schedule, dependencyTable, instr, idx, instructions
     min_delay = 0
     # Check each type of dependency
     for dep_type in ["localDependency", "loopInvarDep", "postLoopDep", "interloopDep"]:
-        for dep in dependency[dep_type]:
+        for dep in dependency[dep_type]: # tuple (dependent ID, reg vaue)
             for i in range(len(schedule)):
-                if dep[0] in schedule[i]["instructions"]:
+                if dep[0] in schedule[i]["instructions"]: # dep[0] is the ID of the instruction on which there is dependence from
                     delay = compute_delay(i, get_instruction_with_id(instructions,dep[0]))  # pass instr directly
                     min_delay = max(min_delay, delay)
 

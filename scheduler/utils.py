@@ -193,4 +193,22 @@ unit_limit = {
         "BRANCH": 1
     }
 
-
+def count_operations_per_class(instructions):
+    """
+    Counts the number of operations of each unit type in the given instruction list.
+    
+    Args:
+        instructions (list): List of parsed instruction dictionaries.
+    
+    Returns:
+        dict: Mapping from unit type (e.g., "ALU", "MEM") to number of operations.
+    """
+    counts = {}
+    for instr in instructions:
+        unit = get_unit_type(instr)
+        if unit == "BB":
+            continue
+        if unit not in counts:
+            counts[unit] = 0
+        counts[unit] += 1
+    return counts
