@@ -53,7 +53,9 @@ def dependency_analysis(parsed):
     detect_interloop_dependencies(parsed, dependency_table)
     detect_loop_invariant_dependencies(parsed, dependency_table)
     detect_post_loop_dependencies(parsed, dependency_table)
-    
+    print("\n=== Dependency Table ===")
+    for i in dependency_table:
+        print(i)
     # Make a deep copy for each version
     latest_timestamp = clean_dependencies_latest_timestamp(copy.deepcopy(dependency_table))
     only_registers   = clean_dependencies_only_registers(copy.deepcopy(dependency_table))
@@ -174,10 +176,10 @@ def detect_post_loop_dependencies(parsed, dep_table):
         if not post_loop:
             continue
         for j in range(i):
-            if parsed[j]["instrAddress"] != -1 and get_producer_register(instr_i) & get_consumer_register(parsed[j]):
-                for reg in get_producer_register(instr_i) & get_consumer_register(parsed[j]):
+            if parsed[j]["instrAddress"] != -1 and get_consumer_register(instr_i) & get_producer_register(parsed[j]):
+                for reg in get_consumer_register(instr_i) & get_producer_register(parsed[j]):
                     dep_table[i]["postLoopDep"].append((parsed[j]["instrAddress"], reg))
-
+    
 
 def clean_dependencies(dep_table):
     for entry in dep_table:
