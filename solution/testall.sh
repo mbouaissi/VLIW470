@@ -12,7 +12,7 @@ do
 
     for simple_ref in ${tnum}/simple_ref*.json
     do
-        out="$(python compare.py --loop ${tnum}/simple.json --refLoop ${simple_ref})"
+        out="$(python3 compare.py --loop ${tnum}/simple.json --refLoop ${simple_ref})"
         passed=$(echo "$out" | head -n 1)
 
         if [[ "$passed" == *"PASSED"* ]]; then
@@ -26,7 +26,7 @@ do
 
     for pip_ref in ${tnum}/pip_ref*.json
     do
-        out="$(python compare.py --pip ${tnum}/pip.json  --refPip ${pip_ref})"
+        out="$(python3 compare.py --pip ${tnum}/pip.json  --refPip ${pip_ref})"
         passed=$(echo "$out" | head -n 1)
 
         if [[ "$passed" == *"PASSED"* ]]; then

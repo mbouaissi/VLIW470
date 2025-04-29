@@ -10,8 +10,8 @@ def main():
     args = sys.argv[1:]
 
     if len(args) < 3 or len(args) > 4:
-        print("Usage: python main.py input.json outputLoop.json outputLoopPip.json [--debug]")
-        return
+        raise ValueError("Usage: python main.py input.json outputLoop.json outputLoopPip.json [--debug]")
+
 
     input = args[0]
     outputLoop = args[1]
@@ -46,7 +46,7 @@ def main():
     
     # Needs to be done also for loop.pip
     (schedule, parsedInstruction) = register_loop(loopScheduler, parsedInstruction, dependencyTable)
-    
+
     json2 = convert_loop_to_json(parsedInstruction, schedule)
     
     with open(outputLoop, "w") as f:

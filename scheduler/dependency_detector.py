@@ -2,6 +2,8 @@ import re
 import copy
 
 from utils import *
+from collections import defaultdict
+
 
 def detector(instruction, needToParse = True):
     parsed_instruction = instruction
@@ -88,6 +90,8 @@ def detect_interloop_dependencies(parsed, dependency_table):
     Detect interloop in different blocks or iteration.
     """
     currentBlock = "BB0"
+    
+    ld_map_reg_addr = defaultdict(list)
     for i , instr in enumerate(parsed):
         if instr["instrAddress"] == -1:
             currentBlock = instr["opcode"]
@@ -97,6 +101,9 @@ def detect_interloop_dependencies(parsed, dependency_table):
         newBlock = "BB0"
         toAdd1 = -1
         toAdd2 = -1
+        if instr["opcode"]=="ld" and currentBlock == "BB1":
+            ld_map_reg_addr[instr["dest"]].append(instr["instrAddress"])
+                
         for j, later_instr in enumerate(parsed):
             if later_instr["instrAddress"] == -1:
                 newBlock = later_instr["opcode"]
@@ -108,7 +115,12 @@ def detect_interloop_dependencies(parsed, dependency_table):
 
             intersection = producers & consumers
             for reg in intersection:
-                if (intersection and later_instr["dest"]):
+                canContinue = True
+                if (reg in ld_map_reg_addr):
+                    for addr in ld_map_reg_addr[reg]:
+                        if (addr < instr["instrAddress"]):
+                            canContinue = False
+                if (intersection and later_instr["dest"] and canContinue):
                     match newBlock:
                         case "BB0":
                                 toAdd1 = (later_instr["instrAddress"], reg)
@@ -121,9 +133,8 @@ def detect_interloop_dependencies(parsed, dependency_table):
                             break
         if toAdd2 != -1:
             dependency_table[i]["interloopDep"].append(toAdd2)
-        # Keep an eye on XXX
-        if toAdd1 != -1:
-            dependency_table[i]["interloopDep"].append(toAdd1)
+            if toAdd1 != -1:#becasue we could only have 1 dependency, and it wont be correct
+                dependency_table[i]["interloopDep"].append(toAdd1)
 def detect_loop_invariant_dependencies(parsed, dependency_table):
     """
     Detect loop invariant dependencies.
@@ -253,11 +264,5 @@ def get_producer_register(instr):
         return set()
     if instr["dest"] and instr["dest"].startswith("x") : 
         regs.append(instr["dest"])
-    # if instr["opcode"] == "st":
-    #     # For store, both dest and src important
-    #     if instr["src1"] and instr["src1"].startswith("x"): 
-    #         regs.append(instr["src1"])
-    #     if instr["src2"] and instr["src2"].startswith("x"): 
-    #         regs.append(instr["src2"])
     
     return set(regs)
