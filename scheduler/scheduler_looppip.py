@@ -1,5 +1,6 @@
 from utils import *
 from scheduler_loop import *
+import math
 
 def pip_loop(dependencyTable, instructions):
     """
@@ -63,21 +64,45 @@ def schedule_loop(block_instr, dependencyTable, unit_limit, II):
     print("II is:", II)
 
     # Schedule function now using the basic schedule + II value
-    schedule =  complex_schedule(schedule, II)
+    schedule =  complex_schedule(schedule, block_instr, II)
 
     return schedule
 
-def complex_schedule(basic_sch, II):
-    complex_sch = [init_bundle() for _ in range(len(basic_sch))]
+def complex_schedule(basic_sch, block_instr, II):
+
+    # Initializaton
+    complex_sch = basic_sch
+        # Remove branch
+    complex_sch[-1]['instructions'].pop()
+    complex_sch[-1]["BRANCH"] = 0
 
     while len(complex_sch) % II != 0:
         complex_sch.append(init_bundle())
 
-    print(complex_sch)
+    print("Initialization schedule")
+    print_schedule(complex_sch)
 
-    # Add the branch (last instruction in the last bundle of basic and also add BRANCH +1)
+    # Branch
+    complex_sch[-1]['instructions'].append(block_instr[-1]['instrAddress'])
+    complex_sch[-1]["BRANCH"] += 1
 
-    return complex_sch
+    print("Branch dealt with")
+    print_schedule(complex_sch)
+
+    # Modulo
+    mod_sch = [init_bundle() for _ in range(len(complex_sch))]
+
+    for idx, bundle in enumerate(complex_sch):
+        for instr in bundle['instructions']:
+            repeat_idx = idx % II
+            while repeat_idx < len(complex_sch):
+                mod_sch[repeat_idx]['instructions'].append(instr)
+                repeat_idx += II
+
+    print("Modulo scheduling")
+    print_schedule(mod_sch)
+
+    return mod_sch
 
 def basic_schedule(block_instr, dependencyTable, unit_limit):
     """
@@ -215,7 +240,7 @@ def bounded_ii(instructions):
         units = unit_limit[op_class]
         ii_values.append((num_operations / units))
 
-    return max(ii_values)
+    return int(math.ceil(max(ii_values)))
 
 
 

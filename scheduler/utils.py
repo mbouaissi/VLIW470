@@ -219,3 +219,8 @@ def find_bundle_of_instr(instr_address, schedule):
         if instr_address in bundle['instructions']:
             return idx
     return None  # Not found
+
+# For debugging purposes
+def print_schedule(schedule):
+    for idx, bundle in enumerate(schedule):
+        print(f"Bundle {idx}: {bundle}")
