@@ -23,11 +23,10 @@ def register_loop(schedule, parsedInstructions, dependencyTable):
         if instruction["opcode"] != "st" and instruction["dest"] and instruction["dest"].startswith("x"):
             new_register = f"x{reg_rename_counter}"
             interloop_dependency_map[new_register] = None
-            print(f"Renaming {instruction['dest']} to {new_register}")
             
-            if instruction["dest"] == instruction["src1"] and not no_more_interloop_possible:
+            if instruction["dest"] == instruction["src1"] and not no_more_interloop_possible and is_reg_in_dependency_table(dependencyTable, "interloopDep", instruction["src1"]):
                 interloop_dependency_map[new_register] = instruction["src1"]
-            if instruction["dest"] == instruction["src2"]and not no_more_interloop_possible:
+            if instruction["dest"] == instruction["src2"]and not no_more_interloop_possible and is_reg_in_dependency_table(dependencyTable, "interloopDep", instruction["src1"]):
                 interloop_dependency_map[new_register] = instruction["src2"]
             
             register_renaming_map.setdefault(instruction["dest"], []).append((new_register, instruction["instrAddress"]))
@@ -86,9 +85,20 @@ def register_loop(schedule, parsedInstructions, dependencyTable):
             continue
         insert_address = instruction["instrAddress"]
         break
-    print(interloop_dependency_map)
     for renamed_register, original in interloop_dependency_map.items():
-        if original and original != renamed_register:
+        print(f"Renaming {renamed_register} to {original}")
+        
+        # Check if renamed_register actually has a dependency
+        has_dependency = True
+        # for entry in dependencyTable:
+        #     for (dep_instr_addr, dep_reg) in entry.get("interloopDep", []):
+        #         if dep_reg == renamed_register:
+        #             has_dependency = True
+        #             break
+        #     if has_dependency:
+        #         break
+
+        if original and original != renamed_register and has_dependency:
             insert_address += 1
             mov_instruction = {
                 "instrAddress": insert_address,
@@ -104,6 +114,7 @@ def register_loop(schedule, parsedInstructions, dependencyTable):
     parsedInstructions.extend(interloop_mov_instructions)
 
     # Schedule the mov instructions
+    
     for mov in interloop_mov_instructions:
         delay = calculate_mov_insertion_delay(parsedInstructions, schedule_sorted, mov, loop_bundle_index)
         if schedule[loop_bundle_index]["ALU"] < unit_limit["ALU"] and delay == 0:
@@ -177,6 +188,15 @@ def update_interloop_dependency_table(dependencyTable, instruction, new_value, o
 def propagate_register_update_in_dependency_map(interloop_dependency_map, old_register, new_register, key):
     if interloop_dependency_map.get(key) == old_register:
         interloop_dependency_map[key] = new_register
+
+def is_reg_in_dependency_table(dependencyTable, field, reg):
+    for entry in dependencyTable:
+        for j in entry[field]:
+            print(j, reg, str(j[1]) == str(reg)) 
+            if str(j[1]) == str(reg):
+                return True
+    return False
+
 # [
 #     "mov LC, 100",
 #     "mov x2, 10",
