@@ -209,15 +209,4 @@ def convert_back_to_register(schedule, parsedInstruction):
         new_schedule.append(bundle)
     return new_schedule
 
-# [' mov LC, 100', ' mov x1, 0x1000', ' nop', ' nop', ' nop']
-# [' mov x2, 1', ' mov x3, 25', ' nop', ' nop', ' nop']
-# [' addi x4, x1, 1', ' nop', ' nop', ' ld x5, 0(x1)', ' nop']
-# [' nop', ' nop', ' mulu x6, x5, x3', ' nop', ' nop']
-# [' nop', ' nop', ' mulu x7, x2, x5', ' nop', ' nop']
-# [' nop', ' nop', ' nop', ' nop', ' nop']
-# [' mov [[[0]]], x1', ' mov [[[0]]], x2', ' nop', ' st x6, 0(x1)', ' nop']
-# [' mov [[[0]]], x3', " mov [[['x1']]], x4", ' nop', ' nop', ' nop']
-# [' mov [[[0]]], x5', ' mov [[[0]]], x6', ' nop', ' nop', ' nop']
-# [" mov [[['x3']]], x7", ' nop', ' nop', ' nop', ' loop 2']
-# [' nop', ' nop', ' nop', ' st x7, 0(x4)', ' nop']
-#  ~/epfl/comparch/VLIW470   main ±  
+

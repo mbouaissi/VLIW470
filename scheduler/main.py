@@ -2,6 +2,7 @@ import sys
 import json
 from dependency_detector import detector
 from scheduler_loop import simple_loop
+from scheduler_looppip import pip_loop
 from register_loop import register_loop
 
 from utils import *
@@ -9,7 +10,7 @@ def main():
     args = sys.argv[1:]
 
     if len(args) < 3 or len(args) > 4:
-        print("Usage: python simulator.py input.json outputLoop.json outputLoopPip.json [--debug]")
+        print("Usage: python main.py input.json outputLoop.json outputLoopPip.json [--debug]")
         return
 
     input = args[0]
@@ -28,19 +29,22 @@ def main():
         instructions = json.load(f)
         
     (parsedInstruction, dependencyTable) = detector(instructions)
-    
+
     print("\n=== Dependency Table ===")
-    for i in dependencyTable:
-        print("==============================")
-        for j in i:
-            print(j)    
+    for entry in dependencyTable[0]:
+        print(entry)
             
     
     dependencyTable = dependencyTable[0]
     loopScheduler = simple_loop(dependencyTable, parsedInstruction)
     print("\n=== Loop Scheduler ===")
     print_schedule(loopScheduler)
+
+    loopPipScheduler = pip_loop(dependencyTable, parsedInstruction)
+    print("\n=== Loop.pip Scheduler ===")
+    print_schedule(loopPipScheduler)
     
+    # Needs to be done also for loop.pip
     (schedule, parsedInstruction) = register_loop(loopScheduler, parsedInstruction, dependencyTable)
     
     json2 = convert_loop_to_json(parsedInstruction, schedule)
