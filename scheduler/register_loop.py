@@ -115,8 +115,14 @@ def register_loop(schedule, parsedInstructions, dependencyTable):
                         for tuple in get_instruction_with_id(dependencyTable,instruction["instrAddress"])["interloopDep"]:
                             if  addr == tuple[0]:
                                 update_interloop_dependency_table(dependencyTable, instruction, new_reg, old_reg, interloop_dependency_map)
-
+    for i in dependencyTable:
+        print(i)
     for instruction in flattened_schedule:
+        notNull = False
+        for dep_type in ["interloopDep", "localDependency", "loopInvarDep","postLoopDep"]:
+            for entry in get_instruction_with_id(dependencyTable, instruction["instrAddress"])[dep_type]:# dependencyTable[instruction["instrAddress"]][dep_type]:
+                notNull = True
+        if notNull:               
             if instruction["opcode"] == "st":
                 update_field("dest")
             update_field("src1")
