@@ -145,20 +145,22 @@ def detect_loop_invariant_dependencies(parsed, dependency_table):
             if currentBlock != "BB0":
                 break
         newBlock = "BB0"
-        toAdd = None
-        dest = -1
-        for j, later_instr in enumerate(parsed[i + 1:], start=i + 1):
+        toAdd = []
+        dest = []
+        for j, later_instr in enumerate(parsed[i + 1:], start=i + 1):      
             if later_instr["instrAddress"] == -1:
                 newBlock = later_instr["opcode"]
                 continue
             if later_instr["dest"] in get_producer_register(instr) :
                 toAdd = None
                 break
+            
             if (get_producer_register(instr) & get_consumer_register(later_instr)) and currentBlock == "BB0" and newBlock!="BB0" and get_producer_register(instr)!= None:
-                toAdd = (j,instr["instrAddress"])
-                dest = later_instr["dest"]
+                toAdd.append( (j,instr["instrAddress"]))
+                dest.append(instr["dest"])
         if toAdd != None:
-            dependency_table[toAdd[0]]["loopInvarDep"].append((toAdd[1],dest))
+            for idx, reg in enumerate(toAdd):
+                dependency_table[reg[0]]["loopInvarDep"].append((reg[1],dest[idx]))
 
             
 def detect_post_loop_dependencies(parsed, dep_table):

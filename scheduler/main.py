@@ -33,32 +33,16 @@ def main():
     print("\n=== Dependency Table ===")
     for entry in dependencyTable[0]:
         print(entry)
-
-    print("\n=== Parsed Instructions ===")
-    for entry in parsedInstruction:
-        print(entry)
-            
     
     dependencyTable = dependencyTable[0]
     loopScheduler = simple_loop(dependencyTable, parsedInstruction)
-    # print("\n=== Loop Scheduler ===")
     print_schedule(loopScheduler)
-
-   # loopPipScheduler = pip_loop(dependencyTable, parsedInstruction)
-    # print("\n=== Loop.pip Scheduler ===")
-    # print_schedule(loopPipScheduler)
-    
-    # # Needs to be done also for loop.pip
     (schedule, parsedInstruction) = register_loop(loopScheduler, parsedInstruction, dependencyTable)
 
     json2 = convert_loop_to_json(parsedInstruction, schedule)
     
     with open(outputLoop, "w") as f:
         json.dump(json2, f, indent=4)
-
-    #if debug_mode:
-    #     for i in json2:
-    #         print(i)
 
 
 if __name__ == "__main__":
