@@ -20,6 +20,7 @@ def phase_three(loopSchedule, instructions, dependencyTable, stride, non_modulo)
         for bundle_idx, bundle in enumerate(non_modulo)
         for instr_id in bundle['instructions']
     }
+    print(instr_to_bundle)
 
     instr_map = {instr['instrAddress']: instr for instr in instructions}
     dep_map = {entry['instrAddress']: entry for entry in dependencyTable}
@@ -70,7 +71,45 @@ def phase_three(loopSchedule, instructions, dependencyTable, stride, non_modulo)
             
 
             # To account for iteration offset (see red in HW pdf)
-            #interloop_deps = deps.get('interloopDep', [])
+            for producer_addr, reg in deps.get('interloopDep', []):
+                if producer_addr in instr_to_bundle:
+                    print("producer_addr is:", producer_addr)
+                    bundle_idx_consumer = instr_to_bundle[instr_addr]
+                    bundle_idx_producer = instr_to_bundle[producer_addr]
+
+                    increment = math.floor(((bundle_idx_consumer - bundle_idx_producer)/(stride))+1)
+                    print("increment regarding interloopDep", increment)
+                    
+                    consumer_instr = instr_map.get(instr_addr)
+                    print("Consumer instr is:", consumer_instr)
+                    producer_instr = instr_map.get(producer_addr)
+
+                    reg = producer_instr['dest']
+
+                    # Standard source operands
+                    for field in ['src1', 'src2']:
+                        if consumer_instr.get(field) == reg:
+                            old_reg_val = consumer_instr[field]
+                            new_reg = f"x{int(old_reg_val[1:]) + increment}"
+                            consumer_instr[field] = new_reg
+                            print(f"[Update] Instr {instr_addr}: field '{field}' changed from {old_reg_val} to {new_reg}")
+
+                    # Destination operand (for store dependencies)
+                    if consumer_instr['opcode'] == 'st' and consumer_instr.get('dest') == reg:
+                        old_reg_val = consumer_instr['dest']
+                        new_reg = f"x{int(old_reg_val[1:]) + increment}"
+                        consumer_instr['dest'] = new_reg
+                        print(f"[Update] Instr {instr_addr}: field 'dest' changed from {old_reg_val} to {new_reg}")
+
+                    # Memory source fields
+                    for mem_field in ['memSrc1', 'memSrc2']:
+                        mem_val = consumer_instr.get(mem_field)
+                        if mem_val and f"({reg})" in mem_val:
+                            new_reg = f"x{int(reg[1:]) + increment}"
+                            updated_mem_val = mem_val.replace(f"({reg})", f"({new_reg})")
+                            consumer_instr[mem_field] = updated_mem_val
+                            print(f"[Update] Instr {instr_addr}: field '{mem_field}' changed from {mem_val} to {updated_mem_val}")
+            
 
 
 
