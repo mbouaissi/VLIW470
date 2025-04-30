@@ -226,3 +226,8 @@ def find_bundle_of_instr(instr_address, schedule):
 def print_schedule(schedule):
     for idx, bundle in enumerate(schedule):
         print(f"Bundle {idx}: {bundle}")
+
+def extract_reg_from_mem(mem_string):
+    if not mem_string or '(' not in mem_string or ')' not in mem_string:
+        return None
+    return mem_string[mem_string.find('(')+1 : mem_string.find(')')]

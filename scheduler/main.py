@@ -42,11 +42,11 @@ def main():
     
     dependencyTable = dependencyTable[0]
 
-    schedule, loopSchedule, II = pip_loop(dependencyTable, parsedInstruction)
+    schedule, loopSchedule, II, non_modulo = pip_loop(dependencyTable, parsedInstruction)
     print("\n=== Loop.pip Scheduler ===")
     print_schedule(schedule)
     
-    parsedInstruction = pip_register(schedule, loopSchedule, parsedInstruction, II, dependencyTable)
+    parsedInstruction = pip_register(schedule, loopSchedule, parsedInstruction, II, dependencyTable, non_modulo)
 
     print("====Register Allocation====")
     for entry in parsedInstruction:

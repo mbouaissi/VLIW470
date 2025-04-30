@@ -29,14 +29,14 @@ def pip_loop(dependencyTable, instructions):
     
     # Schedule BB1
     II = bounded_ii(instructions[bb1_start+1:bb2_start])
-    scheduleBB1, II = schedule_loop(instructions[bb1_start+1:bb2_start], dependencyTable, unit_limit, II)
+    scheduleBB1, II, non_modulo = schedule_loop(instructions[bb1_start+1:bb2_start], dependencyTable, unit_limit, II)
     add_delay_BB0_dependency(scheduleBB0, scheduleBB1, dependencyTable, instructions)
     
     # Schedule BB2 
     scheduleBB2 = schedule_basic_block(instructions[bb2_start+1:], dependencyTable, unit_limit, instructions) if bb2_start else []
     add_delay_BB2_dependency(scheduleBB1,scheduleBB2, dependencyTable, instructions)
     
-    return scheduleBB0 + scheduleBB1 + scheduleBB2, scheduleBB1, II
+    return scheduleBB0 + scheduleBB1 + scheduleBB2, scheduleBB1, II, non_modulo
 
 
 
@@ -64,9 +64,9 @@ def schedule_loop(block_instr, dependencyTable, unit_limit, II):
     print("II is:", II)
 
     # Schedule function now using the basic schedule + II value
-    schedule =  complex_schedule(schedule, block_instr, II)
+    schedule, non_modulo =  complex_schedule(schedule, block_instr, II)
 
-    return schedule, II
+    return schedule, II, non_modulo
 
 def complex_schedule(basic_sch, block_instr, II):
 
@@ -106,7 +106,7 @@ def complex_schedule(basic_sch, block_instr, II):
     print("Modulo scheduling")
     print_schedule(mod_sch)
 
-    return mod_sch
+    return mod_sch, complex_sch
 
 def basic_schedule(block_instr, dependencyTable, unit_limit):
     """
