@@ -193,6 +193,8 @@ unit_limit = {
         "BRANCH": 1
     }
 
+priority = {'ALU': 0, 'MULT': 1, 'MEM': 2, 'BRANCH': 3}
+
 def count_operations_per_class(instructions):
     """
     Counts the number of operations of each unit type in the given instruction list.

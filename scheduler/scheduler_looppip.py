@@ -29,14 +29,14 @@ def pip_loop(dependencyTable, instructions):
     
     # Schedule BB1
     II = bounded_ii(instructions[bb1_start+1:bb2_start])
-    scheduleBB1 = schedule_loop(instructions[bb1_start+1:bb2_start], dependencyTable, unit_limit, II)
+    scheduleBB1, II = schedule_loop(instructions[bb1_start+1:bb2_start], dependencyTable, unit_limit, II)
     add_delay_BB0_dependency(scheduleBB0, scheduleBB1, dependencyTable, instructions)
     
     # Schedule BB2 
     scheduleBB2 = schedule_basic_block(instructions[bb2_start+1:], dependencyTable, unit_limit, instructions) if bb2_start else []
     add_delay_BB2_dependency(scheduleBB1,scheduleBB2, dependencyTable, instructions)
     
-    return scheduleBB0 + scheduleBB1 + scheduleBB2
+    return scheduleBB0 + scheduleBB1 + scheduleBB2, scheduleBB1, II
 
 
 
@@ -66,7 +66,7 @@ def schedule_loop(block_instr, dependencyTable, unit_limit, II):
     # Schedule function now using the basic schedule + II value
     schedule =  complex_schedule(schedule, block_instr, II)
 
-    return schedule
+    return schedule, II
 
 def complex_schedule(basic_sch, block_instr, II):
 
@@ -92,11 +92,15 @@ def complex_schedule(basic_sch, block_instr, II):
     # Modulo
     mod_sch = [init_bundle() for _ in range(len(complex_sch))]
 
+    instr_lookup = {instr["instrAddress"]: instr for instr in block_instr}
+
     for idx, bundle in enumerate(complex_sch):
         for instr in bundle['instructions']:
             repeat_idx = idx % II
             while repeat_idx < len(complex_sch):
                 mod_sch[repeat_idx]['instructions'].append(instr)
+                op_class = get_unit_type(instr_lookup[instr])
+                mod_sch[repeat_idx][op_class] += 1
                 repeat_idx += II
 
     print("Modulo scheduling")
@@ -170,7 +174,7 @@ def basic_schedule(block_instr, dependencyTable, unit_limit):
     schedule[-1]['instructions'].append(block_instr[-1]['instrAddress'])
     schedule[-1]["BRANCH"] += 1
 
-    print("====Schedule=====")
+    print("====Basic schedule=====")
     print(schedule)
 
     return schedule

@@ -4,6 +4,7 @@ from dependency_detector import detector
 from scheduler_loop import simple_loop
 from scheduler_looppip import pip_loop
 from register_loop import register_loop
+from register_looppip import pip_register
 
 from utils import *
 def main():
@@ -40,16 +41,16 @@ def main():
             
     
     dependencyTable = dependencyTable[0]
-    # loopScheduler = simple_loop(dependencyTable, parsedInstruction)
-    # print("\n=== Loop Scheduler ===")
-    # #print_schedule(loopScheduler)
 
-    loopPipScheduler = pip_loop(dependencyTable, parsedInstruction)
-    # print("\n=== Loop.pip Scheduler ===")
-    # print_schedule(loopPipScheduler)
+    schedule, loopSchedule, II = pip_loop(dependencyTable, parsedInstruction)
+    print("\n=== Loop.pip Scheduler ===")
+    print_schedule(schedule)
     
-    # # Needs to be done also for loop.pip
-    # (schedule, parsedInstruction) = register_loop(loopScheduler, parsedInstruction, dependencyTable)
+    parsedInstruction = pip_register(schedule, loopSchedule, parsedInstruction, II)
+
+    print("====Register Allocation====")
+    for entry in parsedInstruction:
+        print(entry)
 
     # json2 = convert_loop_to_json(parsedInstruction, schedule)
     
