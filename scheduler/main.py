@@ -46,7 +46,7 @@ def main():
     print("\n=== Loop.pip Scheduler ===")
     print_schedule(schedule)
     
-    parsedInstruction = pip_register(schedule, loopSchedule, parsedInstruction, II)
+    parsedInstruction = pip_register(schedule, loopSchedule, parsedInstruction, II, dependencyTable)
 
     print("====Register Allocation====")
     for entry in parsedInstruction:
