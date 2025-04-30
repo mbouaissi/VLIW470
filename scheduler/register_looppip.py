@@ -52,7 +52,7 @@ def phase_three(loopSchedule, instructions, dependencyTable, stride, non_modulo)
                         print(f"[Update] Instr {instr_addr}: field '{field}' changed from {old_reg_val} to {new_reg}")
 
                 # Destination operand (for store dependencies)
-                if consumer_instr.get('dest') == reg:
+                if consumer_instr['opcode'] == 'st' and consumer_instr.get('dest') == reg:
                     old_reg_val = consumer_instr['dest']
                     new_reg = f"x{int(old_reg_val[1:]) + increment}"
                     consumer_instr['dest'] = new_reg
