@@ -7,8 +7,24 @@ def pip_register(schedule, loopSchedule, instructions, II, dependencyTable):
 
     instructions = phase_two(loopSchedule, instructions, dependencyTable)
 
+    instructions = phase_three(loopSchedule, instructions, dependencyTable)
+
     return instructions
 
+def phase_three(loopSchedule, instructions, dependencyTable):
+
+    instr_map = {instr['instrAddress']: instr for instr in instructions}
+    dep_map = {entry['instrAddress']: entry for entry in dependencyTable}
+
+    for bundle in loopSchedule:
+        for instr_addr in bundle['instructions']:
+
+            # Get dependency info for this instruction
+            deps = dep_map.get(instr_addr, {})
+
+
+
+    return instructions
 
 def phase_two(loopSchedule, instructions, dependencyTable):
 
@@ -24,22 +40,40 @@ def phase_two(loopSchedule, instructions, dependencyTable):
     for bundle in loopSchedule:
         for instr_addr in bundle['instructions']:
 
-            # Get dependency info for this instruction
+            consumer_instr = instr_map.get(instr_addr)  
             deps = dep_map.get(instr_addr, {})
             loop_invariant_deps = deps.get('loopInvarDep', [])
+            print(loop_invariant_deps)
 
-            # Loop through all loop-invariant dependencies (tuples) and get the address of their dependence
-            for producer_addr, _ in loop_invariant_deps:
+            for producer_addr, producer_reg in loop_invariant_deps:  
+                producer_instr = instr_map.get(producer_addr)                                            
 
-                if producer_addr in already_renamed:
-                    continue  # Skip if already renamed
-                
-                # Assign a new static register: x1, x2, ...
-                producer_instr = instr_map.get(producer_addr)
-                new_reg = f"x{static_base + static_counter}"
-                producer_instr['dest'] = new_reg
-                static_counter += 1
-                already_renamed.add(producer_addr)
+                if producer_addr not in already_renamed:
+                    new_reg = f"x{static_base + static_counter}"
+                    producer_instr['dest'] = new_reg
+                    static_counter += 1
+                    already_renamed.add(producer_addr)
+                    print("We rewrite a producer reg")
+                else:                                                
+                    new_reg = producer_instr['dest']                 
+
+                # Update operands in consumer that matched the original producer reg
+                if consumer_instr.get('src1') == producer_reg:       
+                    consumer_instr['src1'] = new_reg
+                    print("We rewrite a consumer reg")                 
+                if consumer_instr.get('src2') == producer_reg:       
+                    consumer_instr['src2'] = new_reg
+                    print("We rewrite a consumer reg")                  
+                if consumer_instr.get('memSrc1') == producer_reg:    
+                    consumer_instr['memSrc1'] = new_reg
+                    print("We rewrite a consumer reg")              
+                if consumer_instr.get('memSrc2') == producer_reg:    
+                    consumer_instr['memSrc2'] = new_reg
+                    print("We rewrite a consumer reg")
+
+                      
+                print(consumer_instr.get('src2'))
+                print(producer_reg)
 
 
     return instructions
