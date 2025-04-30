@@ -53,7 +53,6 @@ def dependency_analysis(parsed):
     detect_interloop_dependencies(parsed, dependency_table)
     detect_loop_invariant_dependencies(parsed, dependency_table)
     detect_post_loop_dependencies(parsed, dependency_table)
-    
     # Make a deep copy for each version
     latest_timestamp = clean_dependencies_latest_timestamp(copy.deepcopy(dependency_table))
     only_registers   = clean_dependencies_only_registers(copy.deepcopy(dependency_table))
@@ -146,20 +145,22 @@ def detect_loop_invariant_dependencies(parsed, dependency_table):
             if currentBlock != "BB0":
                 break
         newBlock = "BB0"
-        toAdd = None
-        dest = -1
-        for j, later_instr in enumerate(parsed[i + 1:], start=i + 1):
+        toAdd = []
+        dest = []
+        for j, later_instr in enumerate(parsed[i + 1:], start=i + 1):      
             if later_instr["instrAddress"] == -1:
                 newBlock = later_instr["opcode"]
                 continue
             if later_instr["dest"] in get_producer_register(instr) :
                 toAdd = None
                 break
+            
             if (get_producer_register(instr) & get_consumer_register(later_instr)) and currentBlock == "BB0" and newBlock!="BB0" and get_producer_register(instr)!= None:
-                toAdd = (j,instr["instrAddress"])
-                dest = later_instr["dest"]
+                toAdd.append( (j,instr["instrAddress"]))
+                dest.append(instr["dest"])
         if toAdd != None:
-            dependency_table[toAdd[0]]["loopInvarDep"].append((toAdd[1],dest))
+            for idx, reg in enumerate(toAdd):
+                dependency_table[reg[0]]["loopInvarDep"].append((reg[1],dest[idx]))
 
             
 def detect_post_loop_dependencies(parsed, dep_table):
@@ -174,8 +175,8 @@ def detect_post_loop_dependencies(parsed, dep_table):
         if not post_loop:
             continue
         for j in range(i):
-            if parsed[j]["instrAddress"] != -1 and get_producer_register(instr_i) & get_consumer_register(parsed[j]):
-                for reg in get_producer_register(instr_i) & get_consumer_register(parsed[j]):
+            if parsed[j]["instrAddress"] != -1 and get_consumer_register(instr_i) & get_producer_register(parsed[j]):
+                for reg in get_consumer_register(instr_i) & get_producer_register(parsed[j]):
                     dep_table[i]["postLoopDep"].append((parsed[j]["instrAddress"], reg))
 
 

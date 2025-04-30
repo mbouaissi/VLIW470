@@ -43,7 +43,6 @@ def phase_two(loopSchedule, instructions, dependencyTable):
             consumer_instr = instr_map.get(instr_addr)  
             deps = dep_map.get(instr_addr, {})
             loop_invariant_deps = deps.get('loopInvarDep', [])
-            print(loop_invariant_deps)
 
             for producer_addr, producer_reg in loop_invariant_deps:  
                 producer_instr = instr_map.get(producer_addr)                                            
@@ -53,27 +52,19 @@ def phase_two(loopSchedule, instructions, dependencyTable):
                     producer_instr['dest'] = new_reg
                     static_counter += 1
                     already_renamed.add(producer_addr)
-                    print("We rewrite a producer reg")
                 else:                                                
                     new_reg = producer_instr['dest']                 
 
                 # Update operands in consumer that matched the original producer reg
                 if consumer_instr.get('src1') == producer_reg:       
-                    consumer_instr['src1'] = new_reg
-                    print("We rewrite a consumer reg")                 
+                    consumer_instr['src1'] = new_reg             
                 if consumer_instr.get('src2') == producer_reg:       
                     consumer_instr['src2'] = new_reg
                     print("We rewrite a consumer reg")                  
                 if consumer_instr.get('memSrc1') == producer_reg:    
-                    consumer_instr['memSrc1'] = new_reg
-                    print("We rewrite a consumer reg")              
+                    consumer_instr['memSrc1'] = new_reg            
                 if consumer_instr.get('memSrc2') == producer_reg:    
                     consumer_instr['memSrc2'] = new_reg
-                    print("We rewrite a consumer reg")
-
-                      
-                print(consumer_instr.get('src2'))
-                print(producer_reg)
 
 
     return instructions
