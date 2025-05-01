@@ -64,6 +64,12 @@ def main():
     for entry in json_schedule:
         print(entry)
 
+    json_schedule = loop_prep(json_schedule)
+
+    print("\n=== Loop prep Schedule ===")
+    for entry in json_schedule:
+        print(entry)
+
     # with open(outputLoopPip, "w") as f:
     #     json.dump(output_json, f, indent=4)
 

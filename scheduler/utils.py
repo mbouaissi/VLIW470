@@ -234,8 +234,9 @@ def extract_reg_from_mem(mem_string):
 
 
 
-def clean_instructions(instructions):
+import re
 
+def clean_instructions(instructions):
     def resolve_register_offset(reg_str):
         match = re.match(r"x(\d+)\(\+(\d+),\+(\d+)\)", reg_str)
         if not match:
@@ -246,10 +247,21 @@ def clean_instructions(instructions):
         total = base + iter_offset + stage_offset
         return f"x{total}"
 
+    def convert_immediate(val):
+        if isinstance(val, str) and val.startswith("0x"):
+            try:
+                return str(int(val, 16))
+            except ValueError:
+                return val
+        return val
+
     def resolve_fields(instr):
         for field in ['dest', 'src1', 'src2']:
             val = instr.get(field)
             if val:
+                # Convert immediates
+                val = convert_immediate(val)
+                # Clean register offset
                 resolved = resolve_register_offset(val)
                 if resolved != val:
                     print(f"[RegFix] {field}: {val} → {resolved}")
@@ -259,7 +271,6 @@ def clean_instructions(instructions):
             val = instr.get(mem_field)
             if not val:
                 continue
-            # Cherche un registre avec offset dans ()
             match = re.search(r"\((x\d+\(\+\d+,\+\d+\))\)", val)
             if match:
                 reg = match.group(1)
@@ -271,6 +282,7 @@ def clean_instructions(instructions):
 
     for instr in instructions:
         resolve_fields(instr)
+
 
 def form_json(instructions, schedule):
     """
@@ -332,3 +344,35 @@ def form_json(instructions, schedule):
         json_schedule.append(slots)
 
     return json_schedule
+
+
+def loop_prep(schedule):
+    """
+    Returns the schedule with only one iteration of the loop body,
+    keeping prologue and epilogue, and skipping repeated loop iterations.
+    """
+    cleaned = []
+    first_loop_idx = None
+    second_loop_idx = None
+
+    # Find indices of all 'loop.pip' bundles
+    for i, bundle in enumerate(schedule):
+        if any("loop.pip" in instr for instr in bundle):
+            if first_loop_idx is None:
+                first_loop_idx = i
+            elif second_loop_idx is None:
+                second_loop_idx = i
+                break  # We only need the first two
+
+    for i, bundle in enumerate(schedule):
+        if second_loop_idx is not None and first_loop_idx < i < second_loop_idx:
+            continue  # Skip second iteration of loop body
+        if second_loop_idx is not None and i == second_loop_idx:
+            continue  # Skip repeated loop.pip
+        cleaned.append(bundle)
+
+    return cleaned
+
+
+
+
