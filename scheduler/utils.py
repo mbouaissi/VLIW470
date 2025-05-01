@@ -89,7 +89,7 @@ def compute_delay(scheduled_cycle, instr):
     return scheduled_cycle + latency       
 
 
-def convert_loop_to_json(parsedInstruction, schedule):
+def convert_loop_to_json(instructions, schedule):
     """
     Converts the loop schedule to a JSON format,
     enforcing specific slots:
@@ -97,7 +97,7 @@ def convert_loop_to_json(parsedInstruction, schedule):
     """
     json_schedule = []
     
-    instr_map = {instr["instrAddress"]: instr for instr in parsedInstruction if instr["instrAddress"] != -1}
+    instr_map = {instr["instrAddress"]: instr for instr in instructions if instr["instrAddress"] != -1}
 
     for bundle in schedule:
         slots = [" nop"] * 5  # Initialize with 5 nops
@@ -231,3 +231,104 @@ def extract_reg_from_mem(mem_string):
     if not mem_string or '(' not in mem_string or ')' not in mem_string:
         return None
     return mem_string[mem_string.find('(')+1 : mem_string.find(')')]
+
+
+
+def clean_instructions(instructions):
+
+    def resolve_register_offset(reg_str):
+        match = re.match(r"x(\d+)\(\+(\d+),\+(\d+)\)", reg_str)
+        if not match:
+            return reg_str
+        base = int(match.group(1))
+        iter_offset = int(match.group(2))
+        stage_offset = int(match.group(3))
+        total = base + iter_offset + stage_offset
+        return f"x{total}"
+
+    def resolve_fields(instr):
+        for field in ['dest', 'src1', 'src2']:
+            val = instr.get(field)
+            if val:
+                resolved = resolve_register_offset(val)
+                if resolved != val:
+                    print(f"[RegFix] {field}: {val} → {resolved}")
+                instr[field] = resolved
+
+        for mem_field in ['memSrc1', 'memSrc2']:
+            val = instr.get(mem_field)
+            if not val:
+                continue
+            # Cherche un registre avec offset dans ()
+            match = re.search(r"\((x\d+\(\+\d+,\+\d+\))\)", val)
+            if match:
+                reg = match.group(1)
+                resolved = resolve_register_offset(reg)
+                updated = val.replace(reg, resolved)
+                if updated != val:
+                    print(f"[RegFix] {mem_field}: {val} → {updated}")
+                instr[mem_field] = updated
+
+    for instr in instructions:
+        resolve_fields(instr)
+
+def form_json(instructions, schedule):
+    """
+    Convertit les bundles du schedule en lignes formatées proprement.
+    Slots : [ALU0, ALU1, MULT, MEM, BRANCH]
+    """
+    instr_map = {instr["instrAddress"]: instr for instr in instructions if instr["instrAddress"] != -1}
+    json_schedule = []
+
+    def format_instr(instr):
+        if not instr:
+            return " nop"
+
+        opcode = instr["opcode"]
+        dest = instr.get("dest", "")
+        src1 = instr.get("src1", "")
+        src2 = instr.get("src2", "")
+        mem1 = instr.get("memSrc1", "")
+        pred = instr.get("predicate", None)
+
+        prefix = f"({pred}) " if pred else ""
+
+        if opcode == "ld":
+            return f"{prefix}{opcode} {dest}, {mem1}"
+        elif opcode == "st":
+            return f"{prefix}{opcode} {dest}, {mem1}"
+        elif opcode in ["add", "sub", "mulu", "addi"]:
+            return f"{prefix}{opcode} {dest}, {src1}, {src2}"
+        elif opcode == "mov":
+            return f"{prefix}{opcode} {dest}, {src1}"
+        elif opcode == "loop":
+            return f"{prefix}loop.pip {dest}"
+        else:
+            return f"{prefix}{opcode} {dest}, {src1}, {src2}"
+
+    for bundle in schedule:
+        slots = [" nop"] * 5
+
+        instrs = [instr_map.get(i) for i in bundle["instructions"] if i in instr_map]
+
+        # Classify
+        alus = [i for i in instrs if i["opcode"] in ["mov", "add", "sub", "addi"]]
+        mults = [i for i in instrs if i["opcode"] in ["mulu"]]
+        mems = [i for i in instrs if i["opcode"] in ["ld", "st"]]
+        branch = [i for i in instrs if i["opcode"] == "loop"]
+
+        # Fill slots
+        if len(alus) > 0:
+            slots[0] = format_instr(alus[0])
+        if len(alus) > 1:
+            slots[1] = format_instr(alus[1])
+        if len(mults) > 0:
+            slots[2] = format_instr(mults[0])
+        if len(mems) > 0:
+            slots[3] = format_instr(mems[0])
+        if len(branch) > 0:
+            slots[4] = format_instr(branch[0])
+
+        json_schedule.append(slots)
+
+    return json_schedule

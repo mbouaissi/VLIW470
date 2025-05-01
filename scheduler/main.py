@@ -52,15 +52,24 @@ def main():
     for entry in parsedInstruction:
         print(entry)
 
-    # json2 = convert_loop_to_json(parsedInstruction, schedule)
-    
-    # with open(outputLoop, "w") as f:
-    #     json.dump(json2, f, indent=4)
+    clean_instructions(parsedInstruction)
+
+    print("\n=== Cleaned Instructions ===")
+    for entry in parsedInstruction:
+        print(entry)
+
+    json_schedule = form_json(parsedInstruction, schedule)
+
+    print("\n=== Cleaned Schedule ===")
+    for entry in json_schedule:
+        print(entry)
+
+    # with open(outputLoopPip, "w") as f:
+    #     json.dump(output_json, f, indent=4)
 
     # if debug_mode:
-    #     for i in json2:
+    #     for i in output_json:
     #         print(i)
-
 
 if __name__ == "__main__":
     main()
