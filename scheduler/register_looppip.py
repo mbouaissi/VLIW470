@@ -4,11 +4,11 @@ import re
 
 def pip_register(schedule, loopSchedule, instructions, II, dependencyTable, non_modulo):
 
-    print("===Starting renaming===")
-    print("---Instructions---")
-    print_schedule(instructions)
-    print("---Dependencies---")
-    print_schedule(dependencyTable)
+    # print("===Starting renaming===")
+    # print("---Instructions---")
+    # print_schedule(instructions)
+    # print("---Dependencies---")
+    # print_schedule(dependencyTable)
 
     stride = II
 
@@ -24,7 +24,7 @@ def pip_register(schedule, loopSchedule, instructions, II, dependencyTable, non_
 
 def phase_four(schedule, loopSchedule, instructions, dependencyTable, stride):
 
-    print("====PHASE FOUR====")
+    # print("====PHASE FOUR====")
 
     # Isolate BB0 instructions
     bb1_start = next((i for i, instr in enumerate(instructions) if instr["opcode"] == "BB1"), len(instructions))
@@ -52,7 +52,7 @@ def phase_four(schedule, loopSchedule, instructions, dependencyTable, stride):
                     iter_off, stage_off = [x.strip().lstrip('+').rstrip(')') for x in off.split(',')]
 
                     new_dest = f"{base}(+{int(iter_off)+1},+{stage_off})"
-                    print(f"[Phase 4] Renaming BB0 Instr {producer_addr}: {dest} → {new_dest}")
+                    # print(f"[Phase 4] Renaming BB0 Instr {producer_addr}: {dest} → {new_dest}")
                     producer_instr['dest'] = new_dest
                     renamed_dest.add(producer_addr)
 
@@ -68,7 +68,7 @@ def phase_four(schedule, loopSchedule, instructions, dependencyTable, stride):
         for producer_addr, reg in post_loop_deps:
             cycle_p = find_bundle_of_instr(producer_addr, loopSchedule)
             if cycle_p is None:
-                print(f"[WARN] Producer {producer_addr} not found in loopSchedule.")
+                # print(f"[WARN] Producer {producer_addr} not found in loopSchedule.")
                 continue
 
             stage_offset = math.floor((cycle_c - cycle_p) / stride)
@@ -76,7 +76,7 @@ def phase_four(schedule, loopSchedule, instructions, dependencyTable, stride):
 
             apply_postloop_stage_offset(consumer_instr, reg, stage_offset, instr_addr)
 
-    print_schedule(instructions)
+    # print_schedule(instructions)
 
     return instructions
 
@@ -91,7 +91,7 @@ def apply_postloop_stage_offset(instr, reg, stage_inc, instr_addr):
         iter_off = int(match.group(1))
         stage_off = int(match.group(2))
         new_val = f"{reg}(+{iter_off},+{stage_off + stage_inc})"
-        print(f"[PostDep] Instr {instr_addr}: {field} = {val} → {new_val}")
+        # print(f"[PostDep] Instr {instr_addr}: {field} = {val} → {new_val}")
         instr[field] = new_val
 
     def patch_mem_field(mem_field):
@@ -105,7 +105,7 @@ def apply_postloop_stage_offset(instr, reg, stage_inc, instr_addr):
         stage_off = int(match.group(2))
         new_reg = f"{reg}(+{iter_off},+{stage_off + stage_inc})"
         updated = re.sub(rf"{reg}\(\+\d+,\+\d+\)", new_reg, val)
-        print(f"[PostDep] Instr {instr_addr}: {mem_field} = {val} → {updated}")
+        # print(f"[PostDep] Instr {instr_addr}: {mem_field} = {val} → {updated}")
         instr[mem_field] = updated
 
     for field in ['src1', 'src2']:
@@ -120,7 +120,7 @@ def apply_postloop_stage_offset(instr, reg, stage_inc, instr_addr):
 
 def phase_three(loopSchedule, instructions, dependencyTable, stride, non_modulo):
 
-    print("===Phase three===")
+    # print("===Phase three===")
 
     # Map instruction address to bundle index
     instr_to_bundle = {
@@ -185,7 +185,7 @@ def phase_three(loopSchedule, instructions, dependencyTable, stride, non_modulo)
 
                 update_operand_offsets(consumer_instr, reg, iter_increment, stage_increment, instr_addr)
 
-    print_schedule(instructions)
+    # print_schedule(instructions)
 
     return instructions
 
@@ -204,7 +204,7 @@ def update_operand_offsets(instr, reg, iter_inc, stage_inc, instr_addr):
         base = int(match.group(1))
         new_val = f"x{base}(+{iter_inc},+{stage_inc})"
         instr[field] = new_val
-        print(f"[Phase 3] Instr {instr_addr}: field '{field}' changed from {val} to {new_val}")
+        # print(f"[Phase 3] Instr {instr_addr}: field '{field}' changed from {val} to {new_val}")
 
     def update_mem_field(mem_field):
         val = instr.get(mem_field)
@@ -217,7 +217,7 @@ def update_operand_offsets(instr, reg, iter_inc, stage_inc, instr_addr):
             new_reg = f"{base_reg}(+{iter_inc},+{stage_inc})"
             updated_val = re.sub(rf"\({base_reg}(\([^)]+\))?\)", f"({new_reg})", val)
             instr[mem_field] = updated_val
-            print(f"[Phase 3] Instr {instr_addr}: field '{mem_field}' changed from {val} to {updated_val}")
+            # print(f"[Phase 3] Instr {instr_addr}: field '{mem_field}' changed from {val} to {updated_val}")
 
     for field in ['src1', 'src2']:
         update_field(field)
@@ -232,7 +232,7 @@ def update_operand_offsets(instr, reg, iter_inc, stage_inc, instr_addr):
 
 def phase_two(loopSchedule, instructions, dependencyTable):
 
-    print("===Phase two===")
+    # print("===Phase two===")
 
     static_base = 1
     static_counter = 0
@@ -257,7 +257,7 @@ def phase_two(loopSchedule, instructions, dependencyTable):
                 # Rename producer's dest only once
                 if producer_addr not in already_renamed:
                     new_reg = f"x{static_base + static_counter}"
-                    print(f"[Phase 2] Renaming producer @ addr {producer_addr}: {producer_instr['dest']} → {new_reg}")
+                    # print(f"[Phase 2] Renaming producer @ addr {producer_addr}: {producer_instr['dest']} → {new_reg}")
                     producer_instr['dest'] = new_reg
                     static_counter += 1
                     already_renamed.add(producer_addr)
@@ -268,7 +268,7 @@ def phase_two(loopSchedule, instructions, dependencyTable):
                 # Update consumer fields if they match original reg
                 for field in ['src1', 'src2', 'memSrc1', 'memSrc2']:
                     if consumer_instr.get(field) == producer_reg:
-                        print(f"[Phase 2] Renaming consumer @ addr {instr_addr}: {consumer_instr[field]} → {new_reg}")
+                        # print(f"[Phase 2] Renaming consumer @ addr {instr_addr}: {consumer_instr[field]} → {new_reg}")
                         consumer_instr[field] = new_reg
                         
 
@@ -281,16 +281,16 @@ def phase_two(loopSchedule, instructions, dependencyTable):
     # Write back to original dependencyTable list
     dependencyTable[:] = list(dep_map.values())
     
-    print_schedule(instructions)
+    # print_schedule(instructions)
 
-    print("=Dependy Table=")
-    print_schedule(dependencyTable)
+    # print("=Dependy Table=")
+    # print_schedule(dependencyTable)
 
     return instructions
 
 def phase_one(loopSchedule, instructions, stride, dependencyTable):
 
-    print("===Phase one===")
+    # print("===Phase one===")
 
     rotating_base = 32
     rename_count = 0
@@ -366,10 +366,10 @@ def phase_one(loopSchedule, instructions, stride, dependencyTable):
 
             entry[field] = updated_deps
 
-    print_schedule(instructions)
+    # print_schedule(instructions)
 
-    print("=Dependy Table=")
-    print_schedule(dependencyTable)
+    # print("=Dependy Table=")
+    # print_schedule(dependencyTable)
 
     return instructions
 

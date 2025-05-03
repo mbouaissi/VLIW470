@@ -1,6 +1,7 @@
 from utils import *
 from scheduler_loop import *
 import math
+import copy
 
 def pip_loop(dependencyTable, instructions):
     """
@@ -31,12 +32,13 @@ def pip_loop(dependencyTable, instructions):
     II = bounded_ii(instructions[bb1_start+1:bb2_start])
     scheduleBB1, II, non_modulo = schedule_loop(instructions[bb1_start+1:bb2_start], dependencyTable, unit_limit, II)
     add_delay_BB0_dependency(scheduleBB0, scheduleBB1, dependencyTable, instructions)
+    modulo_schedule = copy.deepcopy(scheduleBB1)
     
     # Schedule BB2 
     scheduleBB2 = schedule_basic_block(instructions[bb2_start+1:], dependencyTable, unit_limit, instructions) if bb2_start else []
     add_delay_BB2_dependency(non_modulo,scheduleBB2, dependencyTable, instructions)
     
-    return scheduleBB0 + scheduleBB1 + scheduleBB2, scheduleBB1, II, non_modulo
+    return scheduleBB0 + scheduleBB1 + scheduleBB2, scheduleBB1, II, modulo_schedule, non_modulo
 
 
 def schedule_loop(block_instr, dependencyTable, unit_limit, II):
@@ -56,11 +58,11 @@ def schedule_loop(block_instr, dependencyTable, unit_limit, II):
     schedule = basic_schedule(block_instr, dependencyTable, unit_limit)
 
     if(False == test_ii(block_instr, schedule, dependencyTable, II)):
-        print("Need to redo schedule with increased II")
+        # print("Need to redo schedule with increased II")
         II += 1
         return schedule_loop(block_instr, dependencyTable, unit_limit, II)
 
-    print("II is:", II)
+    # print("II is:", II)
 
     # Schedule function now using the basic schedule + II value
     schedule, non_modulo =  complex_schedule(schedule, block_instr, II)
@@ -78,15 +80,15 @@ def complex_schedule(basic_sch, block_instr, II):
     while len(complex_sch) % II != 0:
         complex_sch.append(init_bundle())
 
-    print("Initialization schedule")
-    print_schedule(complex_sch)
+    # print("Initialization schedule")
+    # print_schedule(complex_sch)
 
     # Branch
     complex_sch[-1]['instructions'].append(block_instr[-1]['instrAddress'])
     complex_sch[-1]["BRANCH"] += 1
 
-    print("Branch dealt with")
-    print_schedule(complex_sch)
+    # print("Branch dealt with")
+    # print_schedule(complex_sch)
 
     # Modulo
     mod_sch = [init_bundle() for _ in range(len(complex_sch))]
@@ -173,8 +175,8 @@ def basic_schedule(block_instr, dependencyTable, unit_limit):
     schedule[-1]['instructions'].append(block_instr[-1]['instrAddress'])
     schedule[-1]["BRANCH"] += 1
 
-    print("====Basic schedule=====")
-    print(schedule)
+    # print("====Basic schedule=====")
+    # print(schedule)
 
     return schedule
 
@@ -206,16 +208,17 @@ def test_ii(block_instr, schedule, dependencyTable, II):
                             'dependent_opcode': dependent_opcode,
                             'current_bundle_idx': bundle_idx,
                         })
-    print("======Report=====")
-    print(report)
+    # print("======Report=====")
+    # print(report)
     
     for test in report:
         latency = 3 if test['dependent_opcode'] == "mulu" else 1
 
         if test['dependent_bundle_idx'] + latency <= test['current_bundle_idx'] + II:
-            print("Test passed")
+            # print("Test passed")
+            continue
         else:
-            print("Test failed")
+            # print("Test failed")
             return False
 
     return True

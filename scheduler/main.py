@@ -1,10 +1,12 @@
 import sys
 import json
+import copy
 from dependency_detector import detector
 from scheduler_loop import simple_loop
 from scheduler_looppip import pip_loop
 from register_loop import register_loop
 from register_looppip import pip_register
+from pip_prep import *
 
 from utils import *
 def main():
@@ -32,80 +34,55 @@ def main():
     # Dependency detection & Parsing
     (parsedInstruction, dependencyTable) = detector(instructions)
 
-    print("\n=== Dependency Table ===")
+    print("====Dependency detection & Parsing====")
+    print("=== Dependency Table ===")
     for entry in dependencyTable[0]:
         print(entry)
 
-    print("\n=== Parsed Instructions ===")
+    print("=== Parsed Instructions ===")
     for entry in parsedInstruction:
         print(entry)
             
     dependencyTable = dependencyTable[0]
 
-    # Scheduling
-        # Classic
-    loopScheduler = simple_loop(dependencyTable, parsedInstruction)
-    print_schedule(loopScheduler)
+    classic_instructions = copy.deepcopy(parsedInstruction)
+    classic_dependencies= copy.deepcopy(dependencyTable)
 
-        # Pip
-    schedule, loopSchedule, II, non_modulo = pip_loop(dependencyTable, parsedInstruction)
-    print("\n=== Loop.pip Scheduler ===")
-    print_schedule(schedule)
+    pip_instructions = copy.deepcopy(parsedInstruction)
+    pip_dependencies = copy.deepcopy(dependencyTable)
 
-    # Register renaming
-        # Classic
-    (schedule, parsedInstruction) = register_loop(loopScheduler, parsedInstruction, dependencyTable)
+    classic_processing(classic_instructions, classic_dependencies, outputLoop)
 
-        # Pip
-    # cause crash    
-    parsedInstruction = pip_register(schedule, loopSchedule, parsedInstruction, II, dependencyTable, non_modulo)
+    # Use classic processing by default in case there isn't any loop
+    if any(instr.get('opcode') == 'loop' for instr in pip_instructions):
+        pip_processing(pip_instructions, pip_dependencies, outputLoopPip)
+    else:
+        classic_processing(classic_instructions, classic_dependencies, outputLoopPip)
 
-    print("====Register Allocation====")
-    for entry in parsedInstruction:
-        print(entry)
 
-    # Convert to final format
-        # Classic
-    json2 = convert_loop_to_json(parsedInstruction, schedule)
+
+def classic_processing(classic_instructions, classic_dependencies, outputLoop):
+    classic_schedule = simple_loop(classic_dependencies, classic_instructions) # Scheduling
+    (classic_schedule, classic_instructions) = register_loop(classic_schedule, classic_instructions, classic_dependencies) # Register renaming
+    json2 = convert_loop_to_json(classic_instructions, classic_schedule) # Loop preparation
 
     with open(outputLoop, "w") as f: 
         json.dump(json2, f, indent=4)
 
-        # Pip
-    # cause crash
-    clean_instructions(parsedInstruction)
 
-    print("\n=== Cleaned Instructions ===")
-    for entry in parsedInstruction:
-        print(entry)
+def pip_processing(pip_instructions, pip_dependencies, outputLoopPip):
+    pip_schedule, looppip_schedule, II, modulo_schedule, non_modulo_schedule = pip_loop(pip_dependencies, pip_instructions) # Scheduling
+    pip_instructions = pip_register(pip_schedule, looppip_schedule, pip_instructions, II, pip_dependencies, non_modulo_schedule) # Register renaming
+    json_schedule = pip_prep(pip_instructions, pip_schedule, II, non_modulo_schedule, modulo_schedule) # Loop prep
 
-    json_schedule = form_json(parsedInstruction, schedule)
+    print("===Final pip schedule===")
+    print_schedule(json_schedule)
 
-    print("\n=== Cleaned Schedule ===")
-    for entry in json_schedule:
-        print(entry)
+    print("==stage==")
+    nb_stages = count_stages(modulo_schedule)
+    print(modulo_schedule)
+    print(nb_stages)
 
-    json_schedule = loop_prep(json_schedule)
-
-    print("\n=== Loop prep Schedule ===")
-    for entry in json_schedule:
-        print(entry)
-
-    json_schedule = insert_movs(json_schedule, II)
-    print("\n=== Loop prep Schedule ===")
-    for entry in json_schedule:
-        print(entry)
-
-    json_schedule = adjust_loop_address(json_schedule, II)
-    print("\n=== Loop prep Schedule ===")
-    for entry in json_schedule:
-        print(entry)
-
-    json_schedule = generate_predicates(json_schedule, non_modulo)
-    print("\n=== Loop prep Schedule ===")
-    for entry in json_schedule:
-        print(entry)
-    
     with open(outputLoopPip, "w") as f:
         json.dump(json_schedule, f, indent=4)
 
