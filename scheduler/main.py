@@ -35,7 +35,6 @@ def main():
     print("\n=== Dependency Table ===")
     for entry in dependencyTable[0]:
         print(entry)
-<<<<<<< HEAD
 
     print("\n=== Parsed Instructions ===")
     for entry in parsedInstruction:
@@ -58,7 +57,8 @@ def main():
     (schedule, parsedInstruction) = register_loop(loopScheduler, parsedInstruction, dependencyTable)
 
         # Pip
-    #parsedInstruction = pip_register(schedule, loopSchedule, parsedInstruction, II, dependencyTable, non_modulo)
+    # cause crash    
+    parsedInstruction = pip_register(schedule, loopSchedule, parsedInstruction, II, dependencyTable, non_modulo)
 
     print("====Register Allocation====")
     for entry in parsedInstruction:
@@ -72,7 +72,8 @@ def main():
         json.dump(json2, f, indent=4)
 
         # Pip
-    #clean_instructions(parsedInstruction)
+    # cause crash
+    clean_instructions(parsedInstruction)
 
     print("\n=== Cleaned Instructions ===")
     for entry in parsedInstruction:
@@ -107,18 +108,6 @@ def main():
     
     with open(outputLoopPip, "w") as f:
         json.dump(json_schedule, f, indent=4)
-=======
-    
-    dependencyTable = dependencyTable[0]
-    loopScheduler = simple_loop(dependencyTable, parsedInstruction)
-    print_schedule(loopScheduler)
-    (schedule, parsedInstruction) = register_loop(loopScheduler, parsedInstruction, dependencyTable)
-
-    json2 = convert_loop_to_json(parsedInstruction, schedule)
-    
-    with open(outputLoop, "w") as f:
-        json.dump(json2, f, indent=4)
->>>>>>> main
 
 
 if __name__ == "__main__":
