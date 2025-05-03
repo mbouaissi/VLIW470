@@ -104,9 +104,6 @@ def complex_schedule(basic_sch, block_instr, II):
                 mod_sch[repeat_idx][op_class] += 1
                 repeat_idx += II
 
-    print("Modulo scheduling")
-    print_schedule(mod_sch)
-
     return mod_sch, complex_sch
 
 def basic_schedule(block_instr, dependencyTable, unit_limit):

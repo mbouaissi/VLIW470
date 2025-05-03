@@ -2,17 +2,19 @@ from utils import *
 import math
 import re
 
-def pip_register(schedule, loopSchedule, instructions, II, dependencyTable, non_modulo):
+def pip_register(schedule, loopSchedule, instructions, II, dependencyTable, non_modulo, modulo_schedule):
 
     # print("===Starting renaming===")
-    # print("---Instructions---")
-    # print_schedule(instructions)
+    print("---Instructions---")
+    print_schedule(instructions)
     # print("---Dependencies---")
     # print_schedule(dependencyTable)
 
     stride = II
 
-    instructions = phase_one(loopSchedule, instructions, stride, dependencyTable)
+
+
+    instructions = phase_one(loopSchedule, instructions, stride, dependencyTable, modulo_schedule)
 
     instructions = phase_two(loopSchedule, instructions, dependencyTable)
 
@@ -100,7 +102,6 @@ def assign_unproduced_operands(schedule, instructions, dependencyTable):
             for field in ['src1', 'src2', 'memSrc1', 'memSrc2']:
                 instruction = instr_map[instr]
                 val = instruction.get(field)
-                print(val)
                 if not val:
                     continue
                 if field.startswith('mem'):
@@ -124,12 +125,9 @@ def assign_unproduced_operands(schedule, instructions, dependencyTable):
                         break
 
                 if not found:
-                    print(instruction)
-                    print(f"[Unused operand] {operand} used in instruction @ addr {instruction.get('instrAddress')}")
+                    # print(f"[Unused operand] {operand} used in instruction @ addr {instruction.get('instrAddress')}")
                     to_reassign_reg.append(operand)
 
-
-    print(to_reassign_reg)
     already_modified = set()
 
     for reg in to_reassign_reg:
@@ -153,7 +151,7 @@ def assign_unproduced_operands(schedule, instructions, dependencyTable):
                         operand = match.group()
 
                         if operand == reg:
-                            print(f"[Replace] In instr @{instruction['instrAddress']}: {field} = {val} → ", end="")
+                            # print(f"[Replace] In instr @{instruction['instrAddress']}: {field} = {val} → ", end="")
                             if field.startswith('mem'):
                                 new_val = re.sub(rf"x{int(reg[1:])}(\([^)]+\))?", static_reg, val)
                                 instruction[field] = new_val
@@ -161,7 +159,6 @@ def assign_unproduced_operands(schedule, instructions, dependencyTable):
                                 new_val = static_reg
                                 instruction[field] = new_val
                             already_modified.add((instr, field))
-                            print(new_val)
                 used_reg.append(static_reg)
                 break
 
@@ -379,9 +376,10 @@ def phase_two(loopSchedule, instructions, dependencyTable):
 
     return instructions
 
-def phase_one(loopSchedule, instructions, stride, dependencyTable):
+def phase_one(loopSchedule, instructions, stride, dependencyTable, modulo_schedule):
 
-    # print("===Phase one===")
+    print("===Phase one===")
+    step = count_stages(modulo_schedule) + 1
 
     rotating_base = 32
     rename_count = 0
@@ -409,7 +407,7 @@ def phase_one(loopSchedule, instructions, stride, dependencyTable):
         new_reg = f'x{rotating_base + rename_count}'
         instr['dest'] = new_reg
         reg_rename_map[original_dest] = new_reg
-        rename_count += stride
+        rename_count += step
 
     # === Phase 1B: Propagate renaming to all operands in instructions ===
     for instr in instructions:
@@ -457,7 +455,7 @@ def phase_one(loopSchedule, instructions, stride, dependencyTable):
 
             entry[field] = updated_deps
 
-    # print_schedule(instructions)
+    print_schedule(instructions)
 
     # print("=Dependy Table=")
     # print_schedule(dependencyTable)

@@ -72,15 +72,12 @@ def classic_processing(classic_instructions, classic_dependencies, outputLoop):
 
 def pip_processing(pip_instructions, pip_dependencies, outputLoopPip):
     pip_schedule, looppip_schedule, II, modulo_schedule, non_modulo_schedule = pip_loop(pip_dependencies, pip_instructions) # Scheduling
-    pip_instructions = pip_register(pip_schedule, looppip_schedule, pip_instructions, II, pip_dependencies, non_modulo_schedule) # Register renaming
+    pip_instructions = pip_register(pip_schedule, looppip_schedule, pip_instructions, II, pip_dependencies, non_modulo_schedule, modulo_schedule) # Register renaming
     json_schedule = pip_prep(pip_instructions, pip_schedule, II, non_modulo_schedule, modulo_schedule) # Loop prep
 
     print("===Final pip schedule===")
     print_schedule(json_schedule)
 
-
-    print("II:", II)
-    
 
     with open(outputLoopPip, "w") as f:
         json.dump(json_schedule, f, indent=4)

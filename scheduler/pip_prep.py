@@ -2,11 +2,7 @@ import re
 from utils import *
 
 def pip_prep(instructions, schedule, II, non_modulo, modulo_schedule):
-    print("==Pre prep instr==")
-    print_schedule(instructions)
     clean_instructions(instructions)
-    print("==Post clean==")
-    print_schedule(instructions)
     json_schedule = form_json(instructions, schedule)
     json_schedule = loop_prep(json_schedule)
     json_schedule = insert_movs(json_schedule, II, modulo_schedule)
