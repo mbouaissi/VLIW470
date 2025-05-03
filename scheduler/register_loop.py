@@ -51,7 +51,6 @@ def register_loop(schedule, parsedInstructions, dependencyTable):
             end = instruction["memSrc1"].find(')')
             if start != -1 and end != -1:
                 reg_in_mem = instruction["memSrc1"][start + 1:end]
-                print(f"Register in memory: {reg_in_mem}")
                 if reg_in_mem not in register_renaming_map:
                     print  (f"Register {reg_in_mem} not in renaming map")
                     new_reg_to_use = f"x{reg_rename_counter}"
@@ -80,16 +79,15 @@ def register_loop(schedule, parsedInstructions, dependencyTable):
 
                     instruction["src2"] = new_reg_to_use
                     reg_rename_counter += 1
-    for i in flattened_schedule:
-        print(i)
     # Second pass: Update sources to match new register names
-    def update_memory_source(mem_field, mem_src_field):
+    def update_memory_source(mem_field, mem_src_field, dep):
         if instruction[mem_field]:
             start = instruction[mem_field].find('(')
             end = instruction[mem_field].find(')')
             if start != -1 and end != -1:
                 reg_in_mem = instruction[mem_field][start + 1:end]
-                if reg_in_mem in register_renaming_map:
+                
+                if dep==reg_in_mem and reg_in_mem in register_renaming_map:
                     for new_reg, addr in register_renaming_map[reg_in_mem]:
                         if instruction["instrAddress"] > addr :
                             new_reg_to_use = instruction[mem_src_field]
@@ -103,10 +101,11 @@ def register_loop(schedule, parsedInstructions, dependencyTable):
                                 if  addr == tuple[0]:
                                     update_interloop_dependency_table(dependencyTable, instruction, new_reg_to_use, reg_in_mem, interloop_dependency_map)
 
-    def update_field(field_name):
+    def update_field(field_name, dep):
         if instruction[field_name] and instruction[field_name].startswith("x"):
             old_reg = instruction[field_name]
-            if old_reg in register_renaming_map:
+        
+            if dep == old_reg and old_reg in register_renaming_map:
                 for new_reg, addr in register_renaming_map[old_reg]:
                     if instruction["instrAddress"] > addr :
                         instruction[field_name] = new_reg        
@@ -115,14 +114,15 @@ def register_loop(schedule, parsedInstructions, dependencyTable):
                                 update_interloop_dependency_table(dependencyTable, instruction, new_reg, old_reg, interloop_dependency_map)
 
     for instruction in flattened_schedule:
-
-        if instruction["opcode"] == "st":
-            update_field("dest")
-        update_field("src1")
-        update_field("src2")
-        update_memory_source("memSrc1", "src1")
-        update_memory_source("memSrc2", "src2")
-
+        for dep_type in ["interloopDep", "localDependency", "loopInvarDep","postLoopDep"]:
+            for entry in get_instruction_with_id(dependencyTable, instruction["instrAddress"])[dep_type]:            
+                entry[1]
+                if instruction["opcode"] == "st":
+                    update_field("dest", entry[1])
+                update_field("src1", entry[1])
+                update_field("src2", entry[1])
+                update_memory_source("memSrc1", "src1", entry[1])
+                update_memory_source("memSrc2", "src2", entry[1])
     # Find loop bundle index
     loop_bundle_index = next(
         (i for i, bundle in enumerate(schedule_sorted) for instr in bundle if instr["opcode"] == "loop"),
@@ -137,9 +137,8 @@ def register_loop(schedule, parsedInstructions, dependencyTable):
             continue
         insert_address = instruction["instrAddress"]
         break
-    for renamed_register, original in interloop_dependency_map.items():
-        print(f"Renaming {renamed_register} to {original}")
-        
+    
+    for renamed_register, original in interloop_dependency_map.items():        
         # Check if renamed_register actually has a dependency
         has_dependency = True
         if original and original != renamed_register and has_dependency:
@@ -236,7 +235,7 @@ def propagate_register_update_in_dependency_map(interloop_dependency_map, old_re
 def is_reg_in_dependency_table(dependencyTable, field, reg):
     for entry in dependencyTable:
         for j in entry[field]:
-            print(j, reg, str(j[1]) == str(reg)) 
+            # print(j, reg, str(j[1]) == str(reg)) 
             if str(j[1]) == str(reg):
                 return True
     return False

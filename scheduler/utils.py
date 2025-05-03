@@ -158,8 +158,6 @@ def format_instruction(instr):
     src1 = format_operand(instr.get("src1"))
     src2 = format_operand(instr.get("src2"))
     mem = format_operand(instr.get("memSrc1"))
-    print(instr)
-
     if opcode == "loop":
         return f" {opcode} {dest}"
     elif opcode in ["ld", "st"] and mem:
