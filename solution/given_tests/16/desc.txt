@@ -1,1 +1,1 @@
-Loop with bubble in the basic block before the loop.
+Test16: Loop with bubble in the basic block before the loop.

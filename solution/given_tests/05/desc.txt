@@ -1,1 +1,1 @@
-Two instructions with single cycle data dependency, same instruction type, same basic block, no loop.
+Test5: Two instructions with single cycle data dependency, same instruction type, same basic block, no loop.

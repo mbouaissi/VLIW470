@@ -1,1 +1,1 @@
-A loop with instructions in the basic block before the loop, in the loop, and after the loop.
+Test4: A loop with instructions in the basic block before the loop, in the loop, and after the loop.

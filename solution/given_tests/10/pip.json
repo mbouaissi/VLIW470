@@ -1,51 +1,44 @@
 [
     [
         "mov LC, 100",
+        "mov EC, 0",
         " nop",
         " nop",
+        " nop"
+    ],
+    [
+        "mov p32, true",
+        "nop",
+        "nop",
+        "nop",
+        "nop"
+    ],
+    [
         " nop",
+        " nop",
+        "(p32) mulu x32, x38(+0,+-1), x38(+0,+-1)",
+        "(p32) ld x34, 0x1000(x10)",
+        " nop"
+    ],
+    [
+        "(p32) addi x36, x36, 1",
+        " nop",
+        " nop",
+        "(p32) ld x38, 0x2000(x12)",
         " nop"
     ],
     [
         " nop",
         " nop",
         " nop",
-        "ld x1, 0x1000(x5)",
-        " nop"
-    ],
-    [
-        "addi x2, x1, 1",
-        " nop",
-        " nop",
-        "ld x3, 0x2000(x6)",
-        " nop"
-    ],
-    [
-        "(p33) mov EC, 1",
-        "(p33) mov p32, true",
-        "(p32) mulu x4, x3, x3",
-        "(p32) st x2, 0x1000(x7)",
+        "(p32) st x36, 0x1000(x11)",
         " nop"
     ],
     [
         " nop",
         " nop",
         " nop",
-        " nop",
-        " nop"
-    ],
-    [
-        " nop",
-        " nop",
-        " nop",
-        " nop",
-        " nop"
-    ],
-    [
-        " nop",
-        " nop",
-        " nop",
-        "(p32) st x4, 0x2000(x8)",
-        "loop.pip 3"
+        "(p32) st x38, 0x2000(x13)",
+        "loop.pip 2"
     ]
 ]
