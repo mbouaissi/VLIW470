@@ -78,10 +78,9 @@ def pip_processing(pip_instructions, pip_dependencies, outputLoopPip):
     print("===Final pip schedule===")
     print_schedule(json_schedule)
 
-    print("==stage==")
-    nb_stages = count_stages(modulo_schedule)
-    print(modulo_schedule)
-    print(nb_stages)
+
+    print("II:", II)
+    
 
     with open(outputLoopPip, "w") as f:
         json.dump(json_schedule, f, indent=4)

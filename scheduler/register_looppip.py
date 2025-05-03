@@ -76,9 +76,100 @@ def phase_four(schedule, loopSchedule, instructions, dependencyTable, stride):
 
             apply_postloop_stage_offset(consumer_instr, reg, stage_offset, instr_addr)
 
-    # print_schedule(instructions)
+    assign_unproduced_operands(schedule, instructions, dependencyTable)
+
 
     return instructions
+
+def assign_unproduced_operands(schedule, instructions, dependencyTable):
+    instr_map = {instr['instrAddress']: instr for instr in instructions}
+
+    used_reg = []
+    to_reassign_reg = []
+
+    scheduled_instrs = [
+        instr_id
+        for bundle in schedule
+        for instr_id in sorted(
+            bundle['instructions'],
+            key=lambda i: priority[get_unit_type(instr_map[i])]
+        )
+    ]
+    
+    for instr in scheduled_instrs:
+            for field in ['src1', 'src2', 'memSrc1', 'memSrc2']:
+                instruction = instr_map[instr]
+                val = instruction.get(field)
+                print(val)
+                if not val:
+                    continue
+                if field.startswith('mem'):
+                    match = re.search(r"x\d+", val)  
+                else:
+                    match = re.match(r"x\d+", val)
+
+                if not match:
+                    continue
+                operand = match.group()
+                found = False
+                
+                for entry in dependencyTable:
+                    for dep_type in ['localDependency', 'interloopDep', 'loopInvarDep', 'postLoopDep']:
+                        deps = entry.get(dep_type, [])
+                        if any(reg == operand for _, reg in deps):
+                            found = True
+                            used_reg.append(operand)
+                            break
+                    if found:
+                        break
+
+                if not found:
+                    print(instruction)
+                    print(f"[Unused operand] {operand} used in instruction @ addr {instruction.get('instrAddress')}")
+                    to_reassign_reg.append(operand)
+
+
+    print(to_reassign_reg)
+    already_modified = set()
+
+    for reg in to_reassign_reg:
+        for i in range(1, 32):
+            static_reg = f"x{i}"
+            if static_reg not in used_reg:
+                for instr in scheduled_instrs:
+                    instruction = instr_map[instr]
+                    for field in ['src1', 'src2', 'memSrc1', 'memSrc2']:
+                        if (instr, field) in already_modified:
+                            continue
+                        val = instruction.get(field)
+                        if not val:
+                            continue
+                        if field.startswith('mem'):
+                            match = re.search(r"x\d+", val)
+                        else:
+                            match = re.match(r"x\d+", val)
+                        if not match:
+                            continue
+                        operand = match.group()
+
+                        if operand == reg:
+                            print(f"[Replace] In instr @{instruction['instrAddress']}: {field} = {val} → ", end="")
+                            if field.startswith('mem'):
+                                new_val = re.sub(rf"x{int(reg[1:])}(\([^)]+\))?", static_reg, val)
+                                instruction[field] = new_val
+                            else:
+                                new_val = static_reg
+                                instruction[field] = new_val
+                            already_modified.add((instr, field))
+                            print(new_val)
+                used_reg.append(static_reg)
+                break
+
+
+
+    return
+
+
 
 def apply_postloop_stage_offset(instr, reg, stage_inc, instr_addr):
     def patch_field(field):

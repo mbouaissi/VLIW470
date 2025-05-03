@@ -155,17 +155,19 @@ def insert_movs(schedule, II, modulo_schedule):
     target_instrs = [f"mov EC, {ec_val}", "mov p32, true"]
     loop_idx = next((i for i, row in enumerate(schedule) if any("loop.pip" in instr for instr in row)), None)
 
-    target_idx = loop_idx - II + 1 
+    target_idx = loop_idx - II
     row = schedule[target_idx]
 
-    # Vérifie si les deux premiers slots sont des 'nop'
     if row[0].strip() == "nop" and row[1].strip() == "nop":
         row[0] = target_instrs[0]
         row[1] = target_instrs[1]
+    elif row[1].strip ()== "nop":
+        row[1] = target_instrs[0]
+        new_row = [target_instrs[1],"nop", "nop", "nop", "nop"]
+        schedule.insert(target_idx + 1, new_row)
     else:
-        # Insérer une nouvelle ligne avant
         new_row = [target_instrs[0], target_instrs[1], "nop", "nop", "nop"]
-        schedule.insert(target_idx, new_row)
+        schedule.insert(target_idx + 1, new_row)
 
     return schedule
 
