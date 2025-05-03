@@ -34,10 +34,9 @@ def pip_loop(dependencyTable, instructions):
     
     # Schedule BB2 
     scheduleBB2 = schedule_basic_block(instructions[bb2_start+1:], dependencyTable, unit_limit, instructions) if bb2_start else []
-    add_delay_BB2_dependency(scheduleBB1,scheduleBB2, dependencyTable, instructions)
+    add_delay_BB2_dependency(non_modulo,scheduleBB2, dependencyTable, instructions)
     
     return scheduleBB0 + scheduleBB1 + scheduleBB2, scheduleBB1, II, non_modulo
-
 
 
 def schedule_loop(block_instr, dependencyTable, unit_limit, II):

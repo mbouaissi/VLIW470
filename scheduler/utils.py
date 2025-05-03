@@ -375,4 +375,84 @@ def loop_prep(schedule):
 
 
 
+def insert_movs(schedule, II):
+    target_instrs = ["mov EC, 1", "mov p32, true"]
+    loop_idx = next((i for i, row in enumerate(schedule) if any("loop.pip" in instr for instr in row)), None)
+
+    target_idx = loop_idx - II + 1 
+    row = schedule[target_idx]
+
+    # Vérifie si les deux premiers slots sont des 'nop'
+    if row[0].strip() == "nop" and row[1].strip() == "nop":
+        row[0] = target_instrs[0]
+        row[1] = target_instrs[1]
+    else:
+        # Insérer une nouvelle ligne avant
+        new_row = ["mov EC, 1", "mov p32, true", "nop", "nop", "nop"]
+        schedule.insert(target_idx, new_row)
+
+    return schedule
+
+
+def adjust_loop_address(schedule, II):
+    for i, row in enumerate(schedule):
+        for j, instr in enumerate(row):
+            instr = instr.strip()
+            if instr.startswith("loop.pip"):
+                # Correct loop pip target to i - II + 1
+                correct_target = i - II + 1 
+                row[j] = f"loop.pip {correct_target}"
+    return schedule
+
+
+def generate_predicates(schedule, non_modulo):
+    # Trouver l’index du loop.pip
+    loop_idx = next((i for i, row in enumerate(schedule) if any("loop.pip" in instr for instr in row)), None)
+    if loop_idx is None:
+        raise ValueError("No 'loop.pip' found in schedule.")
+
+    # Obtenir l’indice de départ de boucle
+    loop_instr = next(instr for instr in schedule[loop_idx] if "loop.pip" in instr)
+    try:
+        loop_start = int(loop_instr.strip().split()[1])
+    except:
+        raise ValueError("Malformed loop.pip")
+
+    # Appliquer p32/p33 dans le corps de boucle selon les bundles non-modulo
+    for i in range(loop_start, loop_idx + 1):
+        row = schedule[i]
+        b = non_modulo[i - loop_start]  # bundle correspondant
+
+        used = {"ALU": 0, "MULT": 0, "MEM": 0}  # BRANCH ignoré totalement
+
+        for j in range(len(row)):
+            instr = row[j].strip()
+            if instr == "nop" or instr.startswith("(p32)") or instr.startswith("(p33)"):
+                continue
+
+            # Déterminer type d’unité selon colonne
+            if j in [0, 1]:
+                unit = "ALU"
+            elif j == 2:
+                unit = "MULT"
+            elif j == 3:
+                unit = "MEM"
+            elif j == 4:
+                # BRANCH → laisser inchangé
+                continue
+            else:
+                continue  # sécurité
+
+            # Décider du prédicat
+            if used[unit] < b[unit]:
+                pred = "p32"
+            else:
+                pred = "p33"
+
+            used[unit] += 1
+            row[j] = f"({pred}) {instr}"
+
+    return schedule
+
+
 

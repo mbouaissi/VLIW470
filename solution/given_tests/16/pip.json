@@ -1,0 +1,44 @@
+[
+    [
+        "mov LC, 100",
+        "mov x32, 5",
+        " nop",
+        " nop",
+        " nop"
+    ],
+    [
+        " nop",
+        " nop",
+        "mulu x33, x32, x32",
+        " nop",
+        " nop"
+    ],
+    [
+        " nop",
+        " nop",
+        " nop",
+        " nop",
+        " nop"
+    ],
+    [
+        " nop",
+        " nop",
+        " nop",
+        " nop",
+        " nop"
+    ],
+    [
+        "mov EC, 1",
+        "mov p32, true",
+        "nop",
+        "nop",
+        "nop"
+    ],
+    [
+        "(p32) add x32, x33, x33",
+        " nop",
+        " nop",
+        " nop",
+        "loop.pip 5"
+    ]
+]

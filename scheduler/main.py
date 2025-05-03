@@ -70,12 +70,24 @@ def main():
     for entry in json_schedule:
         print(entry)
 
-    # with open(outputLoopPip, "w") as f:
-    #     json.dump(output_json, f, indent=4)
+    json_schedule = insert_movs(json_schedule, II)
+    print("\n=== Loop prep Schedule ===")
+    for entry in json_schedule:
+        print(entry)
 
-    # if debug_mode:
-    #     for i in output_json:
-    #         print(i)
+    json_schedule = adjust_loop_address(json_schedule, II)
+    print("\n=== Loop prep Schedule ===")
+    for entry in json_schedule:
+        print(entry)
+
+    json_schedule = generate_predicates(json_schedule, non_modulo)
+    print("\n=== Loop prep Schedule ===")
+    for entry in json_schedule:
+        print(entry)
+
+    with open(outputLoopPip, "w") as f:
+        json.dump(json_schedule, f, indent=4)
+
 
 if __name__ == "__main__":
     main()
