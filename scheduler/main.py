@@ -28,7 +28,8 @@ def main():
 
     with open(input) as f:
         instructions = json.load(f)
-        
+    
+    # Dependency detection & Parsing
     (parsedInstruction, dependencyTable) = detector(instructions)
 
     print("\n=== Dependency Table ===")
@@ -39,20 +40,38 @@ def main():
     for entry in parsedInstruction:
         print(entry)
             
-    
     dependencyTable = dependencyTable[0]
 
+    # Scheduling
+        # Classic
+    loopScheduler = simple_loop(dependencyTable, parsedInstruction)
+    print_schedule(loopScheduler)
+
+        # Pip
     schedule, loopSchedule, II, non_modulo = pip_loop(dependencyTable, parsedInstruction)
     print("\n=== Loop.pip Scheduler ===")
     print_schedule(schedule)
-    
-    parsedInstruction = pip_register(schedule, loopSchedule, parsedInstruction, II, dependencyTable, non_modulo)
+
+    # Register renaming
+        # Classic
+    (schedule, parsedInstruction) = register_loop(loopScheduler, parsedInstruction, dependencyTable)
+
+        # Pip
+    #parsedInstruction = pip_register(schedule, loopSchedule, parsedInstruction, II, dependencyTable, non_modulo)
 
     print("====Register Allocation====")
     for entry in parsedInstruction:
         print(entry)
 
-    clean_instructions(parsedInstruction)
+    # Convert to final format
+        # Classic
+    json2 = convert_loop_to_json(parsedInstruction, schedule)
+
+    with open(outputLoop, "w") as f: 
+        json.dump(json2, f, indent=4)
+
+        # Pip
+    #clean_instructions(parsedInstruction)
 
     print("\n=== Cleaned Instructions ===")
     for entry in parsedInstruction:
@@ -84,7 +103,7 @@ def main():
     print("\n=== Loop prep Schedule ===")
     for entry in json_schedule:
         print(entry)
-
+    
     with open(outputLoopPip, "w") as f:
         json.dump(json_schedule, f, indent=4)
 
