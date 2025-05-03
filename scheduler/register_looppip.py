@@ -78,12 +78,12 @@ def phase_four(schedule, loopSchedule, instructions, dependencyTable, stride):
 
             apply_postloop_stage_offset(consumer_instr, reg, stage_offset, instr_addr)
 
-    assign_unproduced_operands(schedule, instructions, dependencyTable)
+    assign_unproduced_registers(schedule, instructions, dependencyTable)
 
 
     return instructions
 
-def assign_unproduced_operands(schedule, instructions, dependencyTable):
+def assign_unproduced_registers(schedule, instructions, dependencyTable):
     instr_map = {instr['instrAddress']: instr for instr in instructions}
 
     used_reg = []
@@ -99,7 +99,7 @@ def assign_unproduced_operands(schedule, instructions, dependencyTable):
     ]
     
     for instr in scheduled_instrs:
-            for field in ['src1', 'src2', 'memSrc1', 'memSrc2']:
+            for field in ['dest', 'src1', 'src2', 'memSrc1', 'memSrc2']:
                 instruction = instr_map[instr]
                 val = instruction.get(field)
                 if not val:
@@ -115,7 +115,7 @@ def assign_unproduced_operands(schedule, instructions, dependencyTable):
                 found = False
                 
                 for entry in dependencyTable:
-                    for dep_type in ['localDependency', 'interloopDep', 'loopInvarDep', 'postLoopDep']:
+                    for dep_type in ['dest', 'localDependency', 'interloopDep', 'loopInvarDep', 'postLoopDep']:
                         deps = entry.get(dep_type, [])
                         if any(reg == operand for _, reg in deps):
                             found = True
@@ -130,13 +130,17 @@ def assign_unproduced_operands(schedule, instructions, dependencyTable):
 
     already_modified = set()
 
+    # To avoid renaming rotating registers!
+    to_reassign_reg = [reg for reg in to_reassign_reg
+                   if re.fullmatch(r"x([0-9]|[1-2][0-9]|3[01])", reg)]
+
     for reg in to_reassign_reg:
         for i in range(1, 32):
             static_reg = f"x{i}"
             if static_reg not in used_reg:
                 for instr in scheduled_instrs:
                     instruction = instr_map[instr]
-                    for field in ['src1', 'src2', 'memSrc1', 'memSrc2']:
+                    for field in ['dest', 'src1', 'src2', 'memSrc1', 'memSrc2']:
                         if (instr, field) in already_modified:
                             continue
                         val = instruction.get(field)
@@ -151,7 +155,7 @@ def assign_unproduced_operands(schedule, instructions, dependencyTable):
                         operand = match.group()
 
                         if operand == reg:
-                            # print(f"[Replace] In instr @{instruction['instrAddress']}: {field} = {val} → ", end="")
+                            print(f"\n[Replace] In instr @{instruction['instrAddress']}: {field} = {val} → {static_reg}", end="")
                             if field.startswith('mem'):
                                 new_val = re.sub(rf"x{int(reg[1:])}(\([^)]+\))?", static_reg, val)
                                 instruction[field] = new_val
@@ -159,9 +163,12 @@ def assign_unproduced_operands(schedule, instructions, dependencyTable):
                                 new_val = static_reg
                                 instruction[field] = new_val
                             already_modified.add((instr, field))
-                used_reg.append(static_reg)
+                            used_reg.append(static_reg)
+
                 break
 
+    print("\n",used_reg)
+    print(to_reassign_reg)
 
 
     return
