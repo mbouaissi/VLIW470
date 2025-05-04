@@ -31,6 +31,7 @@ def pip_loop(dependencyTable, instructions):
     # Schedule BB1
     II = bounded_ii(instructions[bb1_start+1:bb2_start])
     scheduleBB1, II, non_modulo = schedule_loop(instructions[bb1_start+1:bb2_start], dependencyTable, unit_limit, II)
+
     add_delay_BB0_dependency(scheduleBB0, scheduleBB1, dependencyTable, instructions)
     modulo_schedule = copy.deepcopy(scheduleBB1)
     
@@ -57,6 +58,9 @@ def schedule_loop(block_instr, dependencyTable, unit_limit, II):
 
     schedule = basic_schedule(block_instr, dependencyTable, unit_limit)
 
+    # print("===BASIC SCHEDULE===")
+    # print_schedule(schedule)
+
     if(False == test_ii(block_instr, schedule, dependencyTable, II)):
         # print("Need to redo schedule with increased II")
         II += 1
@@ -82,7 +86,32 @@ def complex_schedule(basic_sch, block_instr, II):
 
     # print("Initialization schedule")
     # print_schedule(complex_sch)
+    # print("A: COMPLEX")
+    # print_schedule(complex_sch)
 
+    debug_sch = [init_bundle() for _ in range(len(complex_sch))]
+    instr_lookup = {instr["instrAddress"]: instr for instr in block_instr}
+
+    for idx, bundle in enumerate(complex_sch):
+        for instr in bundle['instructions']:
+            repeat_idx = idx % II
+            op_class = get_unit_type(instr_lookup[instr])
+
+            while(repeat_idx < len(complex_sch)):
+                if debug_sch[repeat_idx][op_class] >= unit_limit[op_class]:
+                    repeat_idx += 1
+                    continue
+                debug_sch[repeat_idx]['instructions'].append(instr)
+                debug_sch[repeat_idx][op_class] += 1
+                repeat_idx += II
+    
+    for idx, bundle in enumerate(debug_sch):
+        if ((idx + 1) % II == 0):
+            debug_sch[idx]['instructions'].append(block_instr[-1]['instrAddress'])
+            debug_sch[-1]["BRANCH"] += 1
+
+    # print("B: debug")
+    # print_schedule(debug_sch)
     # Branch
     complex_sch[-1]['instructions'].append(block_instr[-1]['instrAddress'])
     complex_sch[-1]["BRANCH"] += 1
@@ -98,13 +127,38 @@ def complex_schedule(basic_sch, block_instr, II):
     for idx, bundle in enumerate(complex_sch):
         for instr in bundle['instructions']:
             repeat_idx = idx % II
-            while repeat_idx < len(complex_sch):
-                mod_sch[repeat_idx]['instructions'].append(instr)
-                op_class = get_unit_type(instr_lookup[instr])
-                mod_sch[repeat_idx][op_class] += 1
-                repeat_idx += II
+            inserted = False
 
-    return mod_sch, complex_sch
+            while not inserted:
+                # Étend mod_sch si nécessaire
+                if repeat_idx >= len(mod_sch):
+                    mod_sch.append(init_bundle())
+
+                op_class = get_unit_type(instr_lookup[instr])
+
+                if mod_sch[repeat_idx][op_class] < unit_limit[op_class]:
+                    mod_sch[repeat_idx]['instructions'].append(instr)
+                    mod_sch[repeat_idx][op_class] += 1
+                    inserted = True
+                else:
+                    repeat_idx += II
+
+    # for idx, bundle in enumerate(complex_sch):
+    #     for instr in bundle['instructions']:
+    #         repeat_idx = idx % II
+            
+    #         while repeat_idx < len(complex_sch):
+    #             mod_sch[repeat_idx]['instructions'].append(instr)
+    #             op_class = get_unit_type(instr_lookup[instr])
+    #             mod_sch[repeat_idx][op_class] += 1
+    #             repeat_idx += II
+    
+    # print("==HEREEEE==")
+    # print_schedule(complex_sch)
+    # print("Modulo")
+    # print_schedule(mod_sch)
+
+    return debug_sch, complex_sch
 
 def basic_schedule(block_instr, dependencyTable, unit_limit):
     """
@@ -120,11 +174,16 @@ def basic_schedule(block_instr, dependencyTable, unit_limit):
     """
     schedule = [init_bundle()]  # Start with one bundle
 
+    # print("=========================")
+    # print(schedule)
+
     for instr in block_instr[:-1]:  # Skip the branch for now
         op_class = get_unit_type(instr)
 
         # Find matching dependency entry
         matching_dep = next((dep for dep in dependencyTable if dep['instrAddress'] == instr['instrAddress']), None)
+        # print("===MATCHING DEP===")
+        # print(matching_dep)
 
         latency = 0
         scheduled = False
@@ -156,7 +215,12 @@ def basic_schedule(block_instr, dependencyTable, unit_limit):
                                         break
                                 conflict = True
                                 break
-
+                            if dep_type == "localDependency":
+                                 dep_bundle_index = next(j for j, b in enumerate(schedule) if dep_instr_addr in b['instructions'])
+                                 if dep_bundle_index is None or dep_bundle_index > i:
+                                    conflict = True
+                                    break
+                            
                 if conflict:
                     i += 1
                     continue
@@ -167,6 +231,7 @@ def basic_schedule(block_instr, dependencyTable, unit_limit):
                 scheduled = True
             else:
                 i += 1  # Try next bundle
+
 
     # Finally, schedule the branch instruction
     schedule[-1]['instructions'].append(block_instr[-1]['instrAddress'])

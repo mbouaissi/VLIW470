@@ -52,7 +52,7 @@ def register_loop(schedule, parsedInstructions, dependencyTable):
             if start != -1 and end != -1:
                 reg_in_mem = instruction["memSrc1"][start + 1:end]
                 if reg_in_mem not in register_renaming_map:
-                    print  (f"Register {reg_in_mem} not in renaming map")
+                    # print  (f"Register {reg_in_mem} not in renaming map")
                     new_reg_to_use = f"x{reg_rename_counter}"
                     # Safely replace only inside the (reg) part of offset(reg)
                     start = instruction["memSrc1"].find('(')

@@ -5,14 +5,14 @@ import re
 def pip_register(schedule, loopSchedule, instructions, II, dependencyTable, non_modulo, modulo_schedule):
 
     # print("===Starting renaming===")
-    print("---Instructions---")
-    print_schedule(instructions)
+    # print("---Instructions---")
+    # print_schedule(instructions)
     # print("---Dependencies---")
     # print_schedule(dependencyTable)
 
     stride = II
 
-
+    normalize_memory_operands(instructions)
 
     instructions = phase_one(loopSchedule, instructions, stride, dependencyTable, modulo_schedule)
 
@@ -125,10 +125,11 @@ def assign_unproduced_registers(schedule, instructions, dependencyTable):
                         break
 
                 if not found:
-                    # print(f"[Unused operand] {operand} used in instruction @ addr {instruction.get('instrAddress')}")
+                    print(f"[Unused operand] {operand} used in instruction @ addr {instruction.get('instrAddress')}")
                     to_reassign_reg.append(operand)
 
     already_modified = set()
+
 
     # To avoid renaming rotating registers!
     to_reassign_reg = [reg for reg in to_reassign_reg
@@ -155,7 +156,7 @@ def assign_unproduced_registers(schedule, instructions, dependencyTable):
                         operand = match.group()
 
                         if operand == reg:
-                            print(f"\n[Replace] In instr @{instruction['instrAddress']}: {field} = {val} → {static_reg}", end="")
+                            # print(f"\n[Replace] In instr @{instruction['instrAddress']}: {field} = {val} → {static_reg}", end="")
                             if field.startswith('mem'):
                                 new_val = re.sub(rf"x{int(reg[1:])}(\([^)]+\))?", static_reg, val)
                                 instruction[field] = new_val
@@ -166,9 +167,6 @@ def assign_unproduced_registers(schedule, instructions, dependencyTable):
                             used_reg.append(static_reg)
 
                 break
-
-    print("\n",used_reg)
-    print(to_reassign_reg)
 
 
     return
@@ -245,6 +243,7 @@ def phase_three(loopSchedule, instructions, dependencyTable, stride, non_modulo)
                     reg = match.group(1)
                     instr[mem_field] = val.replace(f"({reg})", f"({reg}(+0,+0))")
 
+
     # === Dependency Handling ===
     for bundle in non_modulo:
         for instr_addr in bundle['instructions']:
@@ -252,7 +251,7 @@ def phase_three(loopSchedule, instructions, dependencyTable, stride, non_modulo)
             consumer_instr = instr_map.get(instr_addr)
             bundle_idx_consumer = instr_to_bundle[instr_addr]
 
-            # ---- Local Dependencies (stage offset only) ----
+            # ---- Local Dependencies (stage offset only) ---- 
             for producer_addr, _ in deps.get('localDependency', []):
                 if producer_addr not in instr_to_bundle:
                     continue
@@ -362,9 +361,21 @@ def phase_two(loopSchedule, instructions, dependencyTable):
 
                 # Update consumer fields if they match original reg
                 for field in ['src1', 'src2', 'memSrc1', 'memSrc2']:
-                    if consumer_instr.get(field) == producer_reg:
-                        # print(f"[Phase 2] Renaming consumer @ addr {instr_addr}: {consumer_instr[field]} → {new_reg}")
-                        consumer_instr[field] = new_reg
+                    val = consumer_instr.get(field)
+                    if not val:
+                        continue
+
+                    if field.startswith("mem"):
+                        # Match formats like "0(x3)" or "x5(+0,+0)(x3)"
+                        pattern = rf"\b{re.escape(producer_reg)}\b"
+                        if re.search(pattern, val):
+                            new_val = re.sub(pattern, new_reg, val)
+                            print(f"[Phase 2] Renaming mem @ addr {instr_addr}: {val} → {new_val}")
+                            consumer_instr[field] = new_val
+                    else:
+                        if val == producer_reg:
+                            print(f"[Phase 2] Renaming consumer @ addr {instr_addr}: {val} → {new_reg}")
+                            consumer_instr[field] = new_reg
                         
 
                 # Update the dependencyTable entry
@@ -376,21 +387,21 @@ def phase_two(loopSchedule, instructions, dependencyTable):
     # Write back to original dependencyTable list
     dependencyTable[:] = list(dep_map.values())
     
-    # print_schedule(instructions)
+    print_schedule(instructions)
 
-    # print("=Dependy Table=")
-    # print_schedule(dependencyTable)
+    print("=Dependy Table=")
+    print_schedule(dependencyTable)
 
     return instructions
 
 def phase_one(loopSchedule, instructions, stride, dependencyTable, modulo_schedule):
-
-    print("===Phase one===")
     step = count_stages(modulo_schedule) + 1
 
     rotating_base = 32
     rename_count = 0
-    reg_rename_map = {}  # original dest → new rotating reg
+    reg_rename_map = {}  # original dest → last renamed reg (used for memory only)
+    original_dest_map = {}  # instrAddr → original dest
+    producer_rename_map = {}  # (producer_addr, reg) → renamed reg
 
     instr_map = {instr['instrAddress']: instr for instr in instructions}
 
@@ -411,63 +422,74 @@ def phase_one(loopSchedule, instructions, stride, dependencyTable, modulo_schedu
             continue
 
         original_dest = instr['dest']
+        original_dest_map[instr['instrAddress']] = original_dest
         new_reg = f'x{rotating_base + rename_count}'
         instr['dest'] = new_reg
-        reg_rename_map[original_dest] = new_reg
+        reg_rename_map[original_dest] = new_reg  # still used for memory field rewriting
+        producer_rename_map[(instr['instrAddress'], original_dest)] = new_reg
+        print(f"[Rename dest] Field: 'dest' | {original_dest} → {new_reg} | instr addr: {instr['instrAddress']}")
         rename_count += step
 
     # === Phase 1B: Propagate renaming to all operands in instructions ===
+    # Build a map: instrAddr → {reg_used: producer_addr}
+    reg_usage_map = {instr['instrAddress']: {} for instr in instructions}
+    for dep_entry in dependencyTable:
+        addr = dep_entry['instrAddress']
+        for field in ['localDependency', 'interloopDep', 'loopInvarDep', 'postLoopDep']:
+            if field in dep_entry:
+                for producer_addr, reg in dep_entry[field]:
+                    reg_usage_map[addr][reg] = producer_addr
+
     for instr in instructions:
-        # Update dest register if it's in the rename map
+        addr = instr['instrAddress']
+
+        # Update dest register
         if instr.get('dest') in reg_rename_map:
-            instr['dest'] = reg_rename_map[instr['dest']]
+            old_val = instr['dest']
+            instr['dest'] = reg_rename_map[old_val]
+            print(f"[Update dest] Field: 'dest' | {old_val} → {instr['dest']} | instr addr: {addr}")
 
-        # Update source operands
+        # Update src1/src2 based on dependency producer
         for field in ['src1', 'src2']:
-            if instr.get(field) in reg_rename_map:
-                instr[field] = reg_rename_map[instr[field]]
+            reg = instr.get(field)
+            if not reg:
+                continue
+            producer_addr = reg_usage_map[addr].get(reg)
+            renamed = producer_rename_map.get((producer_addr, reg))
+            if renamed:
+                print(f"[Update src] Field: '{field}' | {reg} → {renamed} | instr addr: {addr}")
+                instr[field] = renamed
 
-        # Update memory operands
+        # Update memory operands using basic reg_rename_map
         for mem_field in ['memSrc1', 'memSrc2']:
             mem_val = instr.get(mem_field)
             if not mem_val:
                 continue
             for original, renamed in reg_rename_map.items():
                 if f"({original})" in mem_val:
-                    instr[mem_field] = mem_val.replace(f"({original})", f"({renamed})")
+                    new_val = mem_val.replace(f"({original})", f"({renamed})")
+                    print(f"[Update mem] Field: '{mem_field}' | {mem_val} → {new_val} | instr addr: {addr}")
+                    instr[mem_field] = new_val
 
     # === Phase 1C: Update dependency table to reflect renamed registers ===
-    reverse_rename_map = {v: k for k, v in reg_rename_map.items()}  # x34 → x2
-
     for entry in dependencyTable:
+        addr = entry['instrAddress']
         for field in ['localDependency', 'interloopDep', 'loopInvarDep', 'postLoopDep']:
             if field not in entry:
                 continue
             updated_deps = []
             for producer_addr, reg in entry[field]:
-                producer_instr = instr_map.get(producer_addr)
-                if not producer_instr:
-                    updated_deps.append((producer_addr, reg))
-                    continue
-
-                renamed_dest = producer_instr.get('dest')
-                # Look up the original name from the renamed one
-                original_name = reverse_rename_map.get(renamed_dest, renamed_dest)
-
-                # If the dep reg matches the original name, update to renamed
-                if reg == original_name:
-                    updated_deps.append((producer_addr, renamed_dest))
+                renamed = producer_rename_map.get((producer_addr, reg))
+                if renamed:
+                    print(f"[Update dep] Field: '{field}' | {reg} → {renamed} | from instr {producer_addr}")
+                    updated_deps.append((producer_addr, renamed))
                 else:
                     updated_deps.append((producer_addr, reg))
-
             entry[field] = updated_deps
 
-    print_schedule(instructions)
-
-    # print("=Dependy Table=")
-    # print_schedule(dependencyTable)
-
     return instructions
+
+
 
 
 

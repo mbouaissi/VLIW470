@@ -236,6 +236,18 @@ def count_stages(modulo_schedule):
 
     return nb_stages
 
+def normalize_memory_operands(instructions):
+    for instr in instructions:
+        for mem_field in ['memSrc1', 'memSrc2']:
+            val = instr.get(mem_field)
+            if not val:
+                continue
+            match = re.match(r"(0x[0-9a-fA-F]+)\((x\d+.*)\)", val)
+            if match:
+                hex_offset = match.group(1)
+                reg_part = match.group(2)
+                dec_offset = str(int(hex_offset, 16))
+                instr[mem_field] = f"{dec_offset}({reg_part})"
 
 
 
