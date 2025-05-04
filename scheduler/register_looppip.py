@@ -213,7 +213,7 @@ def apply_postloop_stage_offset(instr, reg, stage_inc, instr_addr):
 
 def phase_three(loopSchedule, instructions, dependencyTable, stride, non_modulo):
 
-    # print("===Phase three===")
+    print("===Phase three===")
 
     # Map instruction address to bundle index
     instr_to_bundle = {
@@ -243,7 +243,9 @@ def phase_three(loopSchedule, instructions, dependencyTable, stride, non_modulo)
                     reg = match.group(1)
                     instr[mem_field] = val.replace(f"({reg})", f"({reg}(+0,+0))")
 
-
+    print("non modulo")
+    print_schedule(non_modulo)
+    print("II", stride)
     # === Dependency Handling ===
     for bundle in non_modulo:
         for instr_addr in bundle['instructions']:
@@ -258,8 +260,16 @@ def phase_three(loopSchedule, instructions, dependencyTable, stride, non_modulo)
                 producer_instr = instr_map.get(producer_addr)
                 bundle_idx_producer = instr_to_bundle[producer_addr]
 
+                consumer_stage = math.floor(bundle_idx_consumer/stride)
+                producer_stage = math.floor(bundle_idx_producer/stride)
+
+                print(consumer_stage)
+                print(producer_stage)
+
+
                 iter_increment = 0
-                stage_increment = math.floor((bundle_idx_consumer - bundle_idx_producer) / stride)
+                stage_increment = consumer_stage - producer_stage
+                print(stage_increment)
 
                 reg = producer_instr['dest']
 
@@ -279,7 +289,7 @@ def phase_three(loopSchedule, instructions, dependencyTable, stride, non_modulo)
 
                 update_operand_offsets(consumer_instr, reg, iter_increment, stage_increment, instr_addr)
 
-    # print_schedule(instructions)
+    print_schedule(instructions)
 
     return instructions
 
