@@ -4,502 +4,333 @@ import re
 
 def pip_register(schedule, loopSchedule, instructions, II, dependencyTable, non_modulo, modulo_schedule):
 
-    # print("===Starting renaming===")
-    # print("---Instructions---")
-    # print_schedule(instructions)
-    # print("---Dependencies---")
-    # print_schedule(dependencyTable)
-
-    stride = II
-
     normalize_memory_operands(instructions)
 
-    instructions = phase_one(loopSchedule, instructions, stride, dependencyTable, modulo_schedule)
+    phase_one(loopSchedule, instructions, II, modulo_schedule)
 
-    instructions = phase_two(loopSchedule, instructions, dependencyTable)
+    phase_two(loopSchedule, instructions, dependencyTable)
 
-    instructions = phase_three(loopSchedule, instructions, dependencyTable, stride, non_modulo)
+    first_point_phase_four = phase_three(instructions, dependencyTable, II, non_modulo)
 
-    instructions = phase_four(schedule, loopSchedule, instructions, dependencyTable, stride)
+    phase_four(schedule, loopSchedule, instructions, dependencyTable, II, first_point_phase_four, non_modulo)
+
 
     return instructions
 
-def phase_four(schedule, loopSchedule, instructions, dependencyTable, stride):
+def phase_four(schedule, loopSchedule, instructions, dependencyTable, II, first_point_phase_four, non_modulo):
+    instr_map = {instr['instrAddress']: instr for instr in instructions}
+    dep_map   = {entry['instrAddress']: entry for entry in dependencyTable}
 
-    # print("====PHASE FOUR====")
-
-    # Isolate BB0 instructions
     bb1_start = next((i for i, instr in enumerate(instructions) if instr["opcode"] == "BB1"), len(instructions))
     bb2_start = next((i for i, instr in enumerate(instructions) if instr["opcode"] == "BB2"), None)
 
-    # Maps for easy access
-    instr_map = {instr['instrAddress']: instr for instr in instructions[1:bb1_start]}
-    dep_map = {entry['instrAddress']: entry for entry in dependencyTable}
+    bb0_instructions = instructions[bb1_start+1:bb2_start]
+    bb2_instructions = instructions[bb2_start+1:]
 
-    BB0_addrs = set(instr_map.keys())
+    changed_in_first_point = []
 
-    renamed_dest = set()
+    instr_pos_in_sch = {
+        instr_id: bundle_idx
+        for bundle_idx, bundle in enumerate(schedule)
+        for instr_id in bundle['instructions']
+    }
 
-    for bundle in loopSchedule[:stride]:
+    # === TREAT DEST OF BB0 ===
+    # DOESN'T ACCOUNT FOR WHATEVER IS -St(P) (test really the stage distance) CAN ALREADY DO IT WITH NON MODULO (first iter) AND ADD THE PROLOGUE OVER
+    for bundle in non_modulo:
         for instr_addr in bundle['instructions']:
-            deps = dep_map.get(instr_addr, {})
-            interloop_deps = deps.get('interloopDep', [])
+            deps                 = dep_map.get(instr_addr, {})
+            for producer_addr, _ in deps.get('interloopDep', []):
+                producer_instr      = instr_map[producer_addr]
+                if first_point_phase_four[instr_addr]['dep_reg'] == producer_instr['dest']:
+                    new_reg = first_point_phase_four[instr_addr]['reg_to_update_w'] + 1
+                    original_dest = producer_instr['dest']
+                    producer_instr['dest'] = f'x{new_reg}'
+                    print(f"[PHASE 4a: Rename dest from loop info] {original_dest} → {f'x{new_reg}'} @ instr {producer_addr}")
+                    changed_in_first_point.append(producer_instr['instrAddress'])
 
-            for producer_addr, reg in interloop_deps:
-                if producer_addr in BB0_addrs and producer_addr not in renamed_dest:
-                    producer_instr = instr_map[producer_addr]
+    # === LOCAL DEP IN BB0 and BB2 ===
+    # What does it mean same way as without loop.pip? Unless the destination register has already been allocated?
+    for consumer_instr in bb0_instructions:
+        instr_addr = consumer_instr['instrAddress']
+        deps       = dep_map.get(instr_addr, {})
+        for producer_addr, dep_reg in deps.get('localDependency', []):
+            producer_instr      = instr_map[producer_addr]
+            producer_reg        = producer_instr['dest']
+            if consumer_instr['opcode'] == 'st':
+                operands_type = ['dest']
+            else:
+                operands_type = ['src1', 'src2']
+            for field in operands_type:
+                if consumer_instr[field] == dep_reg:
+                    original_dest = consumer_instr[field]
+                    consumer_instr[field] = producer_reg
+                    print(f"[PHASE 4b: Rename consumer due to localDep BB0] {original_dest} → {producer_reg} @ field {field} and @ opcode {consumer_instr["opcode"]}")
+            for field in ['memSrc1', 'memSrc2']:
+                val = consumer_instr.get(field)
+                if val and '(' in val:
+                    match = re.search(r'(x\d+)', val)
+                    if match:
+                        consumer_reg = match.group(1)
+                        if consumer_reg == dep_reg:
+                            original_dest = consumer_reg
+                            consumer_instr[field] = producer_reg
+                            print(f"[PHASE 4b: Rename consumer due to localDep BB0] {original_dest} → {producer_reg} @ field {field} and @ opcode {consumer_instr["opcode"]}")
+    for consumer_instr in bb2_instructions:
+        instr_addr = consumer_instr['instrAddress']
+        deps       = dep_map.get(instr_addr, {})
+        for producer_addr, dep_reg in deps.get('localDependency', []):
+            producer_instr      = instr_map[producer_addr]
+            producer_reg        = producer_instr['dest']
+            if consumer_instr['opcode'] == 'st':
+                operands_type = ['dest']
+            else:
+                operands_type = ['src1', 'src2']
+            for field in operands_type:
+                if consumer_instr[field] == dep_reg:
+                    original_dest = consumer_instr[field]
+                    consumer_instr[field] = producer_reg
+                    print(f"[PHASE 4b: Rename consumer due to localDep BB2] {original_dest} → {producer_reg} @ field {field} and @ opcode {consumer_instr["opcode"]}")
+            for field in ['memSrc1', 'memSrc2']:
+                val = consumer_instr.get(field)
+                if val and '(' in val:
+                    match = re.search(r'(x\d+)', val)
+                    if match:
+                        consumer_reg = match.group(1)
+                        if consumer_reg == dep_reg:
+                            original_dest = consumer_reg
+                            consumer_instr[field] = producer_reg
+                            print(f"[PHASE 4b: Rename consumer due to localDep BB2] {original_dest} → {producer_reg} @ field {field} and @ opcode {consumer_instr["opcode"]}")
 
-                    dest = producer_instr['dest']
-                    base, off = dest.split('(+')
-                    iter_off, stage_off = [x.strip().lstrip('+').rstrip(')') for x in off.split(',')]
+    # === POST LOOP DEP (BB2) ===
+    # Consumer assumed to be on last stage (test really the stage distance)
+    # Use real schedule and last instruction with producer addr to compute stage distance
+    # FIRST NEED TO CORRECT SCHEDULE
+    for consumer_instr in bb2_instructions:
+        instr_addr = consumer_instr['instrAddress']
+        deps       = dep_map.get(instr_addr, {})
+        for producer_addr, dep_reg in deps.get('postLoopDep', []):
+            producer_instr      = instr_map[producer_addr]
+            producer_reg        = producer_instr['dest']
 
-                    new_dest = f"{base}(+{int(iter_off)+1},+{stage_off})"
-                    # print(f"[Phase 4] Renaming BB0 Instr {producer_addr}: {dest} → {new_dest}")
-                    producer_instr['dest'] = new_dest
-                    renamed_dest.add(producer_addr)
+            producer_stage = math.floor(instr_pos_in_sch[producer_addr]/II) # NEED TO GET MODULO SCHEDULE AND DO DIFFERENCE WITH NON MODULO TO GET LAST ITER OF EACH INSTR AND THEN CAN COMPUTE DISTANCE
+            consumer_stage   = math.floor(instr_pos_in_sch[instr_addr]/II)
 
-    # Maps for easy access
-    instr_map = {instr['instrAddress']: instr for instr in instructions[bb2_start+1:]}
-    dep_map = {entry['instrAddress']: entry for entry in dependencyTable}
+            increment = consumer_stage - producer_stage
 
-    for instr_addr in instr_map:
-        deps = dep_map.get(instr_addr, {})
-        post_loop_deps = deps.get('postLoopDep', [])
-        cycle_c = len(loopSchedule) - 1  # assume consumer at last stage
+            print(increment)
 
-        for producer_addr, reg in post_loop_deps:
-            cycle_p = find_bundle_of_instr(producer_addr, loopSchedule)
-            if cycle_p is None:
-                # print(f"[WARN] Producer {producer_addr} not found in loopSchedule.")
-                continue
+            reg_num = int(producer_reg.lstrip('x'))
+            new_num = reg_num + increment
 
-            stage_offset = math.floor((cycle_c - cycle_p) / stride)
-            consumer_instr = instr_map[instr_addr]
+            if consumer_instr['opcode'] == 'st':
+                operands_type = ['dest']
+            else:
+                operands_type = ['src1', 'src2']
+            for field in operands_type:
+                if consumer_instr[field] == dep_reg:
+                    original_dest = consumer_instr[field]
+                    consumer_instr[field] = f"x{new_num}"
+                    print(f"[PHASE 4c: Rename consumer due to postLoopDep] {original_dest} → {f"x{new_num}"} @ field {field} and @ opcode {consumer_instr["opcode"]}")
+            for field in ['memSrc1', 'memSrc2']:
+                val = consumer_instr.get(field)
+                if val and '(' in val:
+                    match = re.search(r'(x\d+)', val)
+                    if match:
+                        consumer_reg = match.group(1)
+                        if consumer_reg == dep_reg:
+                            original_dest = consumer_reg
+                            consumer_instr[field] = f"x{new_num}"
+                            print(f"[PHASE 4c: Rename consumer due to postLoopDep] {original_dest} → {f"x{new_num}"} @ field {field} and @ opcode {consumer_instr["opcode"]}")
+    return 
 
-            apply_postloop_stage_offset(consumer_instr, reg, stage_offset, instr_addr)
-
-    assign_unproduced_registers(schedule, instructions, dependencyTable)
 
 
-    return instructions
 
-def assign_unproduced_registers(schedule, instructions, dependencyTable):
+def phase_three(instructions, dependencyTable, II, non_modulo):
     instr_map = {instr['instrAddress']: instr for instr in instructions}
+    dep_map   = {entry['instrAddress']: entry for entry in dependencyTable}
 
-    used_reg = []
-    to_reassign_reg = []
-
-    scheduled_instrs = [
-        instr_id
-        for bundle in schedule
-        for instr_id in sorted(
-            bundle['instructions'],
-            key=lambda i: priority[get_unit_type(instr_map[i])]
-        )
-    ]
-    
-    for instr in scheduled_instrs:
-            for field in ['dest', 'src1', 'src2', 'memSrc1', 'memSrc2']:
-                instruction = instr_map[instr]
-                val = instruction.get(field)
-                if not val:
-                    continue
-                if field.startswith('mem'):
-                    match = re.search(r"x\d+", val)  
-                else:
-                    match = re.match(r"x\d+", val)
-
-                if not match:
-                    continue
-                operand = match.group()
-                found = False
-                
-                for entry in dependencyTable:
-                    for dep_type in ['dest', 'localDependency', 'interloopDep', 'loopInvarDep', 'postLoopDep']:
-                        deps = entry.get(dep_type, [])
-                        if any(reg == operand for _, reg in deps):
-                            found = True
-                            used_reg.append(operand)
-                            break
-                    if found:
-                        break
-
-                if not found:
-                    print(f"[Unused operand] {operand} used in instruction @ addr {instruction.get('instrAddress')}")
-                    to_reassign_reg.append(operand)
-
-    already_modified = set()
-
-
-    # To avoid renaming rotating registers!
-    to_reassign_reg = [reg for reg in to_reassign_reg
-                   if re.fullmatch(r"x([0-9]|[1-2][0-9]|3[01])", reg)]
-
-    for reg in to_reassign_reg:
-        for i in range(1, 32):
-            static_reg = f"x{i}"
-            if static_reg not in used_reg:
-                for instr in scheduled_instrs:
-                    instruction = instr_map[instr]
-                    for field in ['dest', 'src1', 'src2', 'memSrc1', 'memSrc2']:
-                        if (instr, field) in already_modified:
-                            continue
-                        val = instruction.get(field)
-                        if not val:
-                            continue
-                        if field.startswith('mem'):
-                            match = re.search(r"x\d+", val)
-                        else:
-                            match = re.match(r"x\d+", val)
-                        if not match:
-                            continue
-                        operand = match.group()
-
-                        if operand == reg:
-                            # print(f"\n[Replace] In instr @{instruction['instrAddress']}: {field} = {val} → {static_reg}", end="")
-                            if field.startswith('mem'):
-                                new_val = re.sub(rf"x{int(reg[1:])}(\([^)]+\))?", static_reg, val)
-                                instruction[field] = new_val
-                            else:
-                                new_val = static_reg
-                                instruction[field] = new_val
-                            already_modified.add((instr, field))
-                            used_reg.append(static_reg)
-
-                break
-
-
-    return
-
-
-
-def apply_postloop_stage_offset(instr, reg, stage_inc, instr_addr):
-    def patch_field(field):
-        val = instr.get(field)
-        if not val or not val.startswith(reg):
-            return
-        match = re.match(rf"{reg}\(\+(\d+),\+(\d+)\)", val)
-        if not match:
-            return
-        iter_off = int(match.group(1))
-        stage_off = int(match.group(2))
-        new_val = f"{reg}(+{iter_off},+{stage_off + stage_inc})"
-        # print(f"[PostDep] Instr {instr_addr}: {field} = {val} → {new_val}")
-        instr[field] = new_val
-
-    def patch_mem_field(mem_field):
-        val = instr.get(mem_field)
-        if not val or f"({reg}(" not in val:
-            return
-        match = re.search(rf"{reg}\(\+(\d+),\+(\d+)\)", val)
-        if not match:
-            return
-        iter_off = int(match.group(1))
-        stage_off = int(match.group(2))
-        new_reg = f"{reg}(+{iter_off},+{stage_off + stage_inc})"
-        updated = re.sub(rf"{reg}\(\+\d+,\+\d+\)", new_reg, val)
-        # print(f"[PostDep] Instr {instr_addr}: {mem_field} = {val} → {updated}")
-        instr[mem_field] = updated
-
-    for field in ['src1', 'src2']:
-        patch_field(field)
-
-    if instr.get('opcode') == 'st':
-        patch_field('dest')
-
-    for mem_field in ['memSrc1', 'memSrc2']:
-        patch_mem_field(mem_field)
-
-
-def phase_three(loopSchedule, instructions, dependencyTable, stride, non_modulo):
-
-    print("===Phase three===")
-
-    # Map instruction address to bundle index
-    instr_to_bundle = {
+    instr_pos_in_sch = {
         instr_id: bundle_idx
         for bundle_idx, bundle in enumerate(non_modulo)
         for instr_id in bundle['instructions']
     }
 
-    # Map instrAddress to actual instruction dict
-    instr_map = {instr['instrAddress']: instr for instr in instructions}
-
-    # Map dependencies
-    dep_map = {entry['instrAddress']: entry for entry in dependencyTable}
-
-    # === Initialization: Set all registers to xN(+0,+0) ===
-    for instr in instructions:
-        for field in ['dest', 'src1', 'src2']:
-            val = instr.get(field)
-            if val and val.startswith('x') and '(' not in val:
-                instr[field] = f"{val}(+0,+0)"
-
-        for mem_field in ['memSrc1', 'memSrc2']:
-            val = instr.get(mem_field)
-            if val and '(' in val:
-                match = re.search(r'(x\d+)', val)
-                if match:
-                    reg = match.group(1)
-                    instr[mem_field] = val.replace(f"({reg})", f"({reg}(+0,+0))")
-
-    print("non modulo")
-    print_schedule(non_modulo)
-    print("II", stride)
-    # === Dependency Handling ===
+    first_point_phase_four = {}
+    # === TREAT DEPENDENCIES ===
     for bundle in non_modulo:
         for instr_addr in bundle['instructions']:
-            deps = dep_map.get(instr_addr, {})
-            consumer_instr = instr_map.get(instr_addr)
-            bundle_idx_consumer = instr_to_bundle[instr_addr]
+            consumer_instr       = instr_map[instr_addr]
+            deps                 = dep_map.get(instr_addr, {})
 
-            # ---- Local Dependencies (stage offset only) ---- 
-            for producer_addr, _ in deps.get('localDependency', []):
-                if producer_addr not in instr_to_bundle:
+    # === TREAT LOOP INVARIANCE ===
+            for producer_addr, dep_reg in deps.get('loopInvarDep'):
+                producer_instr   = instr_map[producer_addr]
+                producer_reg     = producer_instr['dest']
+                if consumer_instr['opcode'] == 'st':
+                    operands_type = ['dest']
+                else:
+                    operands_type = ['src1', 'src2']
+                for field in operands_type:
+                    if consumer_instr[field] == dep_reg:
+                        original_dest = consumer_instr[field]
+                        consumer_instr[field] = producer_reg
+                        print(f"[PHASE 3: Rename consumer due to loopInvar] {original_dest} → {producer_reg} @ field {field} and @ opcode {consumer_instr["opcode"]}")
+                for field in ['memSrc1', 'memSrc2']:
+                    val = consumer_instr.get(field)
+                    if val and '(' in val:
+                        match = re.search(r'(x\d+)', val)
+                        if match:
+                            consumer_reg = match.group(1)
+                            if consumer_reg == dep_reg:
+                                original_dest = consumer_reg
+                                consumer_instr[field] = producer_reg
+                                print(f"[PHASE 3: Rename consumer due to loopInvar] {original_dest} → {producer_reg} @ field {field} and @ opcode {consumer_instr["opcode"]}")
+                       
+    # === TREAT LOCAL DEPENDENCIES ===
+            for producer_addr, dep_reg in deps.get('localDependency', []):
+                producer_instr      = instr_map[producer_addr]
+
+                producer_stage = math.floor(instr_pos_in_sch[producer_addr]/II)
+                consumer_stage   = math.floor(instr_pos_in_sch[instr_addr]/II)
+
+                increment = consumer_stage - producer_stage 
+
+                if consumer_instr['opcode'] == 'st':
+                    operands_type = ['dest']
+                else:
+                    operands_type = ['src1', 'src2']
+                for field in operands_type:
+                    if consumer_instr[field] == dep_reg:
+                        producer_reg = producer_instr['dest']
+                        reg_num = int(producer_reg.lstrip('x'))
+                        new_num = reg_num + increment
+                        consumer_instr[field] = f"x{new_num}"
+                        print(f"[PHASE 3: Rename consumer due to localDep] {dep_reg} → {f"x{new_num}"} @ field {field} and @ opcode {consumer_instr["opcode"]}")
+                for field in ['memSrc1', 'memSrc2']:
+                    val = consumer_instr.get(field)
+                    if val and '(' in val:
+                        match = re.search(r'(x\d+)', val)
+                        if match:
+                            consumer_reg = match.group(1)
+                            if consumer_reg == dep_reg:
+                                producer_reg = producer_instr['dest']
+                                reg_num = int(producer_reg.lstrip('x'))
+                                new_num = reg_num + increment
+                                consumer_instr[field] = f"x{new_num}"
+                                print(f"[PHASE 3: Rename consumer due to localDep] {dep_reg} → {f"x{new_num}"} @ field {field} and @ opcode {consumer_instr["opcode"]}")
+
+    # === TREAT INTERLOOP ===
+    
+            for producer_addr, dep_reg in deps.get('interloopDep', []):
+                producer_instr      = instr_map[producer_addr]
+
+                if producer_addr not in instr_pos_in_sch.keys():
                     continue
-                producer_instr = instr_map.get(producer_addr)
-                bundle_idx_producer = instr_to_bundle[producer_addr]
 
-                consumer_stage = math.floor(bundle_idx_consumer/stride)
-                producer_stage = math.floor(bundle_idx_producer/stride)
+                producer_stage = math.floor(instr_pos_in_sch[producer_addr]/II)
+                consumer_stage   = math.floor(instr_pos_in_sch[instr_addr]/II)
 
-                print(consumer_stage)
-                print(producer_stage)
+                increment = consumer_stage - producer_stage + 1
 
+                if consumer_instr['opcode'] == 'st':
+                    operands_type = ['dest']
+                else:
+                    operands_type = ['src1', 'src2']
+                for field in operands_type:
+                    if consumer_instr[field] == dep_reg:
+                        producer_reg = producer_instr['dest']
+                        reg_num = int(producer_reg.lstrip('x'))
+                        new_num = reg_num + increment
+                        first_point_phase_four[instr_addr] = reg_num
 
-                iter_increment = 0
-                stage_increment = consumer_stage - producer_stage
-                print(stage_increment)
+                        first_point_phase_four[instr_addr] = {
+                            'reg_to_update_w':  reg_num,
+                            'dep_reg':        dep_reg
+                        }
+                        consumer_instr[field] = f"x{new_num}"
+                        print(f"[PHASE 3: Rename consumer due to Interloop] {dep_reg} → {f"x{new_num}"} @ field {field} and @ opcode {consumer_instr["opcode"]}")
+                for field in ['memSrc1', 'memSrc2']:
+                    val = consumer_instr.get(field)
+                    if val and '(' in val:
+                        match = re.search(r'(x\d+)', val)
+                        if match:
+                            consumer_reg = match.group(1)
+                            if consumer_reg == dep_reg:
+                                producer_reg = producer_instr['dest']
+                                reg_num = int(producer_reg.lstrip('x'))
+                                first_point_phase_four[instr_addr] = {
+                                    'reg_to_update_w':  reg_num,
+                                    'dep_reg':        dep_reg
+                                }
+                                new_num = reg_num + increment
+                                consumer_instr[field] = f"x{new_num}"
+                                print(f"[PHASE 3: Rename consumer due to Interloop] {dep_reg} → {f"x{new_num}"} @ field {field} and @ opcode {consumer_instr["opcode"]}")
 
-                reg = producer_instr['dest']
-
-                update_operand_offsets(consumer_instr, reg, iter_increment, stage_increment, instr_addr)
-
-            # ---- Interloop Dependencies (stage offset + iteration offset = 1) ----
-            for producer_addr, _ in deps.get('interloopDep', []):
-                if producer_addr not in instr_to_bundle:
-                    continue
-                producer_instr = instr_map.get(producer_addr)
-                bundle_idx_producer = instr_to_bundle[producer_addr]
-
-                iter_increment = 1
-                stage_increment = math.floor((bundle_idx_consumer - bundle_idx_producer) / stride)
-
-                reg = producer_instr['dest']
-
-                update_operand_offsets(consumer_instr, reg, iter_increment, stage_increment, instr_addr)
-
-    print_schedule(instructions)
-
-    return instructions
-
-
-def update_operand_offsets(instr, reg, iter_inc, stage_inc, instr_addr):
-    def update_field(field):
-        val = instr.get(field)
-        if not val or not reg in val:
-            return
-
-        # Extract register number (e.g., x41) and rebuild it
-        match = re.match(r"x(\d+)", reg)
-        if not match:
-            return
-
-        base = int(match.group(1))
-        new_val = f"x{base}(+{iter_inc},+{stage_inc})"
-        instr[field] = new_val
-        # print(f"[Phase 3] Instr {instr_addr}: field '{field}' changed from {val} to {new_val}")
-
-    def update_mem_field(mem_field):
-        val = instr.get(mem_field)
-        if not val or f"({reg}" not in val:
-            return
-
-        match = re.search(rf"\((x\d+)(\([^)]+\))?\)", val)
-        if match:
-            base_reg = match.group(1)
-            new_reg = f"{base_reg}(+{iter_inc},+{stage_inc})"
-            updated_val = re.sub(rf"\({base_reg}(\([^)]+\))?\)", f"({new_reg})", val)
-            instr[mem_field] = updated_val
-            # print(f"[Phase 3] Instr {instr_addr}: field '{mem_field}' changed from {val} to {updated_val}")
-
-    for field in ['src1', 'src2']:
-        update_field(field)
-
-    if instr.get('opcode') == 'st':
-        update_field('dest')
-
-    for mem_field in ['memSrc1', 'memSrc2']:
-        update_mem_field(mem_field)
-
+    return first_point_phase_four
 
 
 def phase_two(loopSchedule, instructions, dependencyTable):
-
-    # print("===Phase two===")
-
-    static_base = 1
-    static_counter = 0
+    static_reg = 1
 
     instr_map = {instr['instrAddress']: instr for instr in instructions}
-    dep_map = {entry['instrAddress']: entry for entry in dependencyTable}
+    dep_map   = {entry['instrAddress']: entry for entry in dependencyTable}
 
-    # To avoid renaming the same producer multiple times
     already_renamed = set()
 
+
+    # === FIND LOOP INVARIANCES ===
     for bundle in loopSchedule:
         for instr_addr in bundle['instructions']:
-            consumer_instr = instr_map.get(instr_addr)
-            deps = dep_map.get(instr_addr, {})
-            loop_invariant_deps = deps.get('loopInvarDep', [])
+            deps           = dep_map.get(instr_addr, {})
+            loop_invar_deps = deps.get('loopInvarDep', [])
 
-            updated_loop_invar_deps = []
-
-            for producer_addr, producer_reg in loop_invariant_deps:
+            # === RENAME LOOP INVARIANCE PRODUCER ===
+            for producer_addr, producer_reg in loop_invar_deps:
                 producer_instr = instr_map.get(producer_addr)
-
-                # Rename producer's dest only once
                 if producer_addr not in already_renamed:
-                    new_reg = f"x{static_base + static_counter}"
-                    # print(f"[Phase 2] Renaming producer @ addr {producer_addr}: {producer_instr['dest']} → {new_reg}")
+                    original_dest = producer_instr['dest']
+                    new_reg = f"x{static_reg}"
                     producer_instr['dest'] = new_reg
-                    static_counter += 1
+                    print(f"[PHASE 2: Rename producer] {original_dest} → {new_reg} @ instr {producer_addr}")
+                    static_reg += 1
                     already_renamed.add(producer_addr)
-                    
                 else:
+                    # If has already been renamed get his renamed value
                     new_reg = producer_instr['dest']
 
-                # Update consumer fields if they match original reg
-                for field in ['src1', 'src2', 'memSrc1', 'memSrc2']:
-                    val = consumer_instr.get(field)
-                    if not val:
-                        continue
+    return
 
-                    if field.startswith("mem"):
-                        # Match formats like "0(x3)" or "x5(+0,+0)(x3)"
-                        pattern = rf"\b{re.escape(producer_reg)}\b"
-                        if re.search(pattern, val):
-                            new_val = re.sub(pattern, new_reg, val)
-                            print(f"[Phase 2] Renaming mem @ addr {instr_addr}: {val} → {new_val}")
-                            consumer_instr[field] = new_val
-                    else:
-                        if val == producer_reg:
-                            print(f"[Phase 2] Renaming consumer @ addr {instr_addr}: {val} → {new_reg}")
-                            consumer_instr[field] = new_reg
-                        
 
-                # Update the dependencyTable entry
-                updated_loop_invar_deps.append((producer_addr, new_reg))
-
-            # Save updated deps back to dep_map
-            dep_map[instr_addr]['loopInvarDep'] = updated_loop_invar_deps
-
-    # Write back to original dependencyTable list
-    dependencyTable[:] = list(dep_map.values())
-    
-    print_schedule(instructions)
-
-    print("=Dependy Table=")
-    print_schedule(dependencyTable)
-
-    return instructions
-
-def phase_one(loopSchedule, instructions, stride, dependencyTable, modulo_schedule):
+def phase_one(loopSchedule, instructions, II, modulo_schedule):
     step = count_stages(modulo_schedule) + 1
-
     rotating_base = 32
-    rename_count = 0
-    reg_rename_map = {}  # original dest → last renamed reg (used for memory only)
-    original_dest_map = {}  # instrAddr → original dest
-    producer_rename_map = {}  # (producer_addr, reg) → renamed reg
+    rename_count       = 0
 
     instr_map = {instr['instrAddress']: instr for instr in instructions}
 
+
+    # === SELECT INSTRUCTIONS TO ROTATE ===
     scheduled_instrs = [
         instr_id
-        for bundle in loopSchedule[:stride]
+        for bundle in loopSchedule[:II]
         for instr_id in sorted(
             bundle['instructions'],
             key=lambda i: priority[get_unit_type(instr_map[i])]
         )
     ]
-
-    # === Phase 1A: Assign new rotating registers to scheduled instructions ===
-    for idx in scheduled_instrs:
-        instr = instr_map[idx]
-
+    # === ASSIGN ROTATING REGISTERS ===
+    for addr in scheduled_instrs:
+        instr = instr_map[addr]
         if instr['opcode'] in ('st', 'loop') or instr['dest'] in ('LC', 'EC'):
             continue
 
         original_dest = instr['dest']
-        original_dest_map[instr['instrAddress']] = original_dest
         new_reg = f'x{rotating_base + rename_count}'
         instr['dest'] = new_reg
-        reg_rename_map[original_dest] = new_reg  # still used for memory field rewriting
-        producer_rename_map[(instr['instrAddress'], original_dest)] = new_reg
-        print(f"[Rename dest] Field: 'dest' | {original_dest} → {new_reg} | instr addr: {instr['instrAddress']}")
+
+        print(f"[PHASE 1: Rename dest] {original_dest} → {new_reg} @ instr {addr}")
         rename_count += step
 
-    # === Phase 1B: Propagate renaming to all operands in instructions ===
-    # Build a map: instrAddr → {reg_used: producer_addr}
-    reg_usage_map = {instr['instrAddress']: {} for instr in instructions}
-    for dep_entry in dependencyTable:
-        addr = dep_entry['instrAddress']
-        for field in ['localDependency', 'interloopDep', 'loopInvarDep', 'postLoopDep']:
-            if field in dep_entry:
-                for producer_addr, reg in dep_entry[field]:
-                    reg_usage_map[addr][reg] = producer_addr
-
-    for instr in instructions:
-        addr = instr['instrAddress']
-
-        # Update dest register
-        if instr.get('dest') in reg_rename_map:
-            old_val = instr['dest']
-            instr['dest'] = reg_rename_map[old_val]
-            print(f"[Update dest] Field: 'dest' | {old_val} → {instr['dest']} | instr addr: {addr}")
-
-        # Update src1/src2 based on dependency producer
-        for field in ['src1', 'src2']:
-            reg = instr.get(field)
-            if not reg:
-                continue
-            producer_addr = reg_usage_map[addr].get(reg)
-            renamed = producer_rename_map.get((producer_addr, reg))
-            if renamed:
-                print(f"[Update src] Field: '{field}' | {reg} → {renamed} | instr addr: {addr}")
-                instr[field] = renamed
-
-        # Update memory operands using basic reg_rename_map
-        for mem_field in ['memSrc1', 'memSrc2']:
-            mem_val = instr.get(mem_field)
-            if not mem_val:
-                continue
-            for original, renamed in reg_rename_map.items():
-                if f"({original})" in mem_val:
-                    new_val = mem_val.replace(f"({original})", f"({renamed})")
-                    print(f"[Update mem] Field: '{mem_field}' | {mem_val} → {new_val} | instr addr: {addr}")
-                    instr[mem_field] = new_val
-
-    # === Phase 1C: Update dependency table to reflect renamed registers ===
-    for entry in dependencyTable:
-        addr = entry['instrAddress']
-        for field in ['localDependency', 'interloopDep', 'loopInvarDep', 'postLoopDep']:
-            if field not in entry:
-                continue
-            updated_deps = []
-            for producer_addr, reg in entry[field]:
-                renamed = producer_rename_map.get((producer_addr, reg))
-                if renamed:
-                    print(f"[Update dep] Field: '{field}' | {reg} → {renamed} | from instr {producer_addr}")
-                    updated_deps.append((producer_addr, renamed))
-                else:
-                    updated_deps.append((producer_addr, reg))
-            entry[field] = updated_deps
-
-    return instructions
-
-
-
-
-
+    return 
