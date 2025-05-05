@@ -4,11 +4,11 @@ import re
 
 def pip_register(schedule, instructions, II, dependencyTable, non_modulo, modulo_schedule, parsedInstruction):
 
-    print("===schedule===")
+    #print("===schedule===")
     print_schedule(schedule)
-    print("===non_modulo===")
+    #print("===non_modulo===")
     print_schedule(non_modulo)
-    print("===modulo_schedule===")
+    #print("===modulo_schedule===")
     print_schedule(modulo_schedule)
 
     normalize_memory_operands(instructions)
@@ -54,7 +54,7 @@ def phase_four(schedule, modulo_schedule, instructions, dependencyTable, II, fir
                     new_reg = first_point_phase_four[instr_addr]['reg_to_update_w'] + 1
                     original_dest = producer_instr['dest']
                     producer_instr['dest'] = f'x{new_reg}'
-                    print(f"[PHASE 4a: Rename dest from loop info] {original_dest} → {f'x{new_reg}'} @ instr {producer_addr}")
+                    #print(f"[PHASE 4a: Rename dest from loop info] {original_dest} → {f'x{new_reg}'} @ instr {producer_addr}")
                     changed_in_first_point.append(producer_instr['instrAddress'])
 
     # === LOCAL DEP IN BB0 and BB2 ===
@@ -62,8 +62,8 @@ def phase_four(schedule, modulo_schedule, instructions, dependencyTable, II, fir
 
 
     free_regs = get_free_static(instructions)
-    print("=== FREE REGS===")
-    print(free_regs)
+    #print("=== FREE REGS===")
+    #print(free_regs)
 
     for consumer_instr in bb0_instructions:
         instr_addr = consumer_instr['instrAddress']
@@ -80,7 +80,7 @@ def phase_four(schedule, modulo_schedule, instructions, dependencyTable, II, fir
                     if (producer_addr in has_been_allocated_phase1):
                         original_dest = consumer_instr[field]
                         consumer_instr[field] = producer_instr['dest']
-                        print(f"[PHASE 4b: Rename consumer due to localDep BB0] {original_dest} → {producer_instr['dest']} @ field {field} and @ opcode {consumer_instr["opcode"]}")
+                        ##print(f"[PHASE 4b: Rename consumer due to localDep BB0] {original_dest} → {producer_instr['dest']} @ field {field} and @ opcode {consumer_instr["opcode"]}")
                     else:
                         original_dest = consumer_instr[field]
                         original_dest_prod = producer_instr['dest']
@@ -88,10 +88,10 @@ def phase_four(schedule, modulo_schedule, instructions, dependencyTable, II, fir
                         free_regs.pop(0)
                         consumer_instr[field] = producer_instr['dest']
                         has_been_allocated_phase1[producer_addr] = producer_instr[field]
-                        print("=== FREE REGS===")
-                        print(free_regs)
-                        print(f"[PHASE 4b: Rename consumer due to localDep BB0 like loop] {original_dest} → {producer_instr['dest']} @ field {field} and @ opcode {consumer_instr["opcode"]}")
-                        print(f"[PHASE 4b: Rename producer due to localDep BB0 like loop] {original_dest_prod} → {producer_instr['dest']} @ field {field} and @ opcode {consumer_instr["opcode"]}")
+                        ##print("=== FREE REGS===")
+                        ##print(free_regs)
+                        ##print(f"[PHASE 4b: Rename consumer due to localDep BB0 like loop] {original_dest} → {producer_instr['dest']} @ field {field} and @ opcode {consumer_instr["opcode"]}")
+                        ##print(f"[PHASE 4b: Rename producer due to localDep BB0 like loop] {original_dest_prod} → {producer_instr['dest']} @ field {field} and @ opcode {consumer_instr["opcode"]}")
             for field in ['memSrc1', 'memSrc2']:
                 val = consumer_instr.get(field)
                 if val and '(' in val:
@@ -102,7 +102,7 @@ def phase_four(schedule, modulo_schedule, instructions, dependencyTable, II, fir
                             offset, _, _ = val.partition('(') 
                             original_dest = consumer_reg
                             consumer_instr[field] = f"{offset}({producer_reg})"
-                            print(f"[PHASE 4b: Rename consumer due to localDep BB0] {original_dest} → {producer_reg} @ field {field} and @ opcode {consumer_instr["opcode"]}")
+                            #print(f"[PHASE 4b: Rename consumer due to localDep BB0] {original_dest} → {producer_reg} @ field {field} and @ opcode {consumer_instr["opcode"]}")
         for consumer_instr in bb1_instructions:
             instr_addr = consumer_instr['instrAddress']
             deps       = dep_map.get(instr_addr, {})
@@ -118,7 +118,7 @@ def phase_four(schedule, modulo_schedule, instructions, dependencyTable, II, fir
                         if (producer_addr in has_been_allocated_phase1):
                             original_dest = consumer_instr[field]
                             consumer_instr[field] = producer_instr['dest']
-                            print(f"[PHASE 4b: Rename consumer due to localDep BB2] {original_dest} → {producer_instr['dest']} @ field {field} and @ opcode {consumer_instr["opcode"]}")
+                            #print(f"[PHASE 4b: Rename consumer due to localDep BB2] {original_dest} → {producer_instr['dest']} @ field {field} and @ opcode {consumer_instr["opcode"]}")
                             print_schedule(instructions)
                         else:
                             original_dest = consumer_instr[field]
@@ -127,8 +127,8 @@ def phase_four(schedule, modulo_schedule, instructions, dependencyTable, II, fir
                             free_regs.pop(0)
                             consumer_instr[field] = producer_instr['dest']
                             has_been_allocated_phase1[producer_addr] = producer_instr[field]
-                            print(f"[PHASE 4b: Rename consumer due to localDep BB2 like loop] {original_dest} → {producer_instr['dest']} @ field {field} and @ opcode {consumer_instr["opcode"]}")
-                            print(f"[PHASE 4b: Rename producer due to localDep BB2 like loop] {original_dest_prod} → {producer_instr['dest']} @ field {field} and @ opcode {consumer_instr["opcode"]}")
+                            #print(f"[PHASE 4b: Rename consumer due to localDep BB2 like loop] {original_dest} → {producer_instr['dest']} @ field {field} and @ opcode {consumer_instr["opcode"]}")
+                            #print(f"[PHASE 4b: Rename producer due to localDep BB2 like loop] {original_dest_prod} → {producer_instr['dest']} @ field {field} and @ opcode {consumer_instr["opcode"]}")
                             print_schedule(instructions)
                 for field in ['memSrc1', 'memSrc2']:
                     val = consumer_instr.get(field)
@@ -140,7 +140,7 @@ def phase_four(schedule, modulo_schedule, instructions, dependencyTable, II, fir
                                 offset, _, _ = val.partition('(') 
                                 original_dest = consumer_reg
                                 consumer_instr[field] = f"{offset}({producer_reg})"
-                                print(f"[PHASE 4b: Rename consumer due to localDep BB0] {original_dest} → {producer_reg} @ field {field} and @ opcode {consumer_instr["opcode"]}")
+                                #print(f"[PHASE 4b: Rename consumer due to localDep BB0] {original_dest} → {producer_reg} @ field {field} and @ opcode {consumer_instr["opcode"]}")
 
     # === POST LOOP DEP (BB2) ===
     for consumer_instr in bb2_instructions:
@@ -165,7 +165,7 @@ def phase_four(schedule, modulo_schedule, instructions, dependencyTable, II, fir
                 if consumer_instr[field] == dep_reg:
                     original_dest = consumer_instr[field]
                     consumer_instr[field] = f"x{new_num}"
-                    print(f"[PHASE 4c: Rename consumer due to postLoopDep] {original_dest} → {f"x{new_num}"} @ field {field} and @ opcode {consumer_instr["opcode"]}")
+                    #print(f"[PHASE 4c: Rename consumer due to postLoopDep] {original_dest} → {f"x{new_num}"} @ field {field} and @ opcode {consumer_instr["opcode"]}")
             for field in ['memSrc1', 'memSrc2']:
                 val = consumer_instr.get(field)
                 if val and '(' in val:
@@ -176,7 +176,7 @@ def phase_four(schedule, modulo_schedule, instructions, dependencyTable, II, fir
                             original_dest = consumer_reg
                             offset, _, _ = val.partition('(')  
                             consumer_instr[field] = f"{offset}(x{new_num})"
-                            print(f"[PHASE 4c: Rename consumer due to postLoopDep] {original_dest} → {f"x{new_num}"} @ field {field} and @ opcode {consumer_instr["opcode"]}")
+                            #print(f"[PHASE 4c: Rename consumer due to postLoopDep] {original_dest} → {f"x{new_num}"} @ field {field} and @ opcode {consumer_instr["opcode"]}")
 
     # === LOOP INVARIANT IN BB0 and BB2 ===
     for consumer_instr in bb0_instructions:
@@ -193,7 +193,7 @@ def phase_four(schedule, modulo_schedule, instructions, dependencyTable, II, fir
                 if consumer_instr[field] == dep_reg:
                     original_dest = consumer_instr[field]
                     consumer_instr[field] = producer_reg
-                    print(f"[PHASE 4d: Rename consumer due to loopInvarDep BB0] {original_dest} → {producer_reg} @ field {field} and @ opcode {consumer_instr["opcode"]}")
+                    #print(f"[PHASE 4d: Rename consumer due to loopInvarDep BB0] {original_dest} → {producer_reg} @ field {field} and @ opcode {consumer_instr["opcode"]}")
             for field in ['memSrc1', 'memSrc2']:
                 val = consumer_instr.get(field)
                 if val and '(' in val:
@@ -204,7 +204,7 @@ def phase_four(schedule, modulo_schedule, instructions, dependencyTable, II, fir
                             offset, _, _ = val.partition('(') 
                             original_dest = consumer_reg
                             consumer_instr[field] = f"{offset}({producer_reg})"
-                            print(f"[PHASE 4d: Rename consumer due to loopInvarDep BB0] {original_dest} → {producer_reg} @ field {field} and @ opcode {consumer_instr["opcode"]}")
+                            #print(f"[PHASE 4d: Rename consumer due to loopInvarDep BB0] {original_dest} → {producer_reg} @ field {field} and @ opcode {consumer_instr["opcode"]}")
     for consumer_instr in bb2_instructions:
         instr_addr = consumer_instr['instrAddress']
         deps       = dep_map.get(instr_addr, {})
@@ -219,7 +219,7 @@ def phase_four(schedule, modulo_schedule, instructions, dependencyTable, II, fir
                 if consumer_instr[field] == dep_reg:
                     original_dest = consumer_instr[field]
                     consumer_instr[field] = producer_reg
-                    print(f"[PHASE 4d: Rename consumer due to loopInvarDep BB2] {original_dest} → {producer_reg} @ field {field} and @ opcode {consumer_instr["opcode"]}")
+                    #print(f"[PHASE 4d: Rename consumer due to loopInvarDep BB2] {original_dest} → {producer_reg} @ field {field} and @ opcode {consumer_instr["opcode"]}")
             for field in ['memSrc1', 'memSrc2']:
                 val = consumer_instr.get(field)
                 if val and '(' in val:
@@ -230,7 +230,7 @@ def phase_four(schedule, modulo_schedule, instructions, dependencyTable, II, fir
                             offset, _, _ = val.partition('(') 
                             original_dest = consumer_reg
                             consumer_instr[field] = f"{offset}({producer_reg})"
-                            print(f"[PHASE 4d: Rename consumer due to loopInvarDep BB2] {original_dest} → {producer_reg} @ field {field} and @ opcode {consumer_instr["opcode"]}")
+                            #print(f"[PHASE 4d: Rename consumer due to loopInvarDep BB2] {original_dest} → {producer_reg} @ field {field} and @ opcode {consumer_instr["opcode"]}")
 
     # === TREAT NEVER WRITTEN TO ===
     reg_to_assign = {} 
@@ -266,7 +266,7 @@ def phase_four(schedule, modulo_schedule, instructions, dependencyTable, II, fir
                             key = (instr_reading['instrAddress'], field)
                             reg_to_assign[key] = field
 
-    print(reg_to_assign)
+    #print(reg_to_assign)
     # Deal with producer operands
     edge_instructions = parsedInstruction[:bb1_start+1]+parsedInstruction[bb2_start+1:]
     for instr_prod in edge_instructions:
@@ -290,24 +290,24 @@ def phase_four(schedule, modulo_schedule, instructions, dependencyTable, II, fir
                 key = (instr_prod_addr, 'dest')
                 reg_to_assign[key] = 'dest'
 
-    print(reg_to_assign)
+    #print(reg_to_assign)
 
     free_regs = get_free_static(instructions)
 
     for entry in reg_to_assign:
         if entry[1] == 'dest':
             if entry[0] not in free_regs:
-                print(free_regs)
+                #print(free_regs)
                 instr = instr_map[entry[0]]
                 free_regs.append(instr['dest'])
                 free_regs.sort(key=lambda r: int(r[1:]))
-                print(free_regs)
+                #print(free_regs)
 
     for instr in instructions:
         addr = instr.get('instrAddress')
         for field in ['dest', 'src1', 'src2']:
             if (addr, field) in reg_to_assign:
-                print(instr[field])
+                #print(instr[field])
                 instr[field] = 'x0'
         for field in ['memSrc1', 'memSrc2']:
             if (addr, field) in reg_to_assign:
@@ -335,10 +335,10 @@ def phase_four(schedule, modulo_schedule, instructions, dependencyTable, II, fir
             if val == 'x0':
                 original_reg = instr[field]
                 instr[field] = free_regs[0]
-                print(f"[PHASE 4e: Rename never written to regiser] {free_regs[0]} @ field {field} and @ opcode {instr["opcode"]}")
+                #print(f"[PHASE 4e: Rename never written to regiser] {free_regs[0]} @ field {field} and @ opcode {instr["opcode"]}")
                 free_regs.pop(0)
-                print("=== FREE REGS===")
-                print(free_regs)
+                #print("=== FREE REGS===")
+                #print(free_regs)
         for field in ['memSrc1', 'memSrc2']:
             val = instr.get(field)
             if val and '(' in val:
@@ -350,11 +350,11 @@ def phase_four(schedule, modulo_schedule, instructions, dependencyTable, II, fir
                         if field == 'memSrc1':
                             offset, _, _ = val.partition('(') 
                             instr[field] = f"{offset}({instr['src1']})"
-                            print(f"[PHASE 4e: Rename never written to regiser] {instr['src1']} @ field {field} and @ opcode {instr["opcode"]}")
+                            #print(f"[PHASE 4e: Rename never written to regiser] {instr['src1']} @ field {field} and @ opcode {instr["opcode"]}")
                         else:
                             offset, _, _ = val.partition('(') 
                             instr[field] = f"{offset}({instr['src2']})"
-                            print(f"[PHASE 4e: Rename never written to regiser] {instr['src1']} @ field {field} and @ opcode {instr["opcode"]}")
+                            #print(f"[PHASE 4e: Rename never written to regiser] {instr['src1']} @ field {field} and @ opcode {instr["opcode"]}")
 
     return 
 
@@ -405,7 +405,7 @@ def phase_three(instructions, dependencyTable, II, non_modulo):
                     if consumer_instr[field] == dep_reg:
                         original_dest = consumer_instr[field]
                         consumer_instr[field] = producer_reg
-                        print(f"[PHASE 3: Rename consumer due to loopInvar] {original_dest} → {producer_reg} @ field {field} and @ opcode {consumer_instr["opcode"]}")
+                        #print(f"[PHASE 3: Rename consumer due to loopInvar] {original_dest} → {producer_reg} @ field {field} and @ opcode {consumer_instr["opcode"]}")
                 for field in ['memSrc1', 'memSrc2']:
                     val = consumer_instr.get(field)
                     if val and '(' in val:
@@ -416,7 +416,7 @@ def phase_three(instructions, dependencyTable, II, non_modulo):
                                 offset, _, _ = val.partition('(') 
                                 original_dest = consumer_reg
                                 consumer_instr[field] = f"{offset}({producer_reg})"
-                                print(f"[PHASE 3: Rename consumer due to loopInvar] {original_dest} → {producer_reg} @ field {field} and @ opcode {consumer_instr["opcode"]}")
+                                #print(f"[PHASE 3: Rename consumer due to loopInvar] {original_dest} → {producer_reg} @ field {field} and @ opcode {consumer_instr["opcode"]}")
                        
     # === TREAT LOCAL DEPENDENCIES ===
             for producer_addr, dep_reg in deps.get('localDependency', []):
@@ -437,7 +437,7 @@ def phase_three(instructions, dependencyTable, II, non_modulo):
                         reg_num = int(producer_reg.lstrip('x'))
                         new_num = reg_num + increment
                         consumer_instr[field] = f"x{new_num}"
-                        print(f"[PHASE 3: Rename consumer due to localDep] {dep_reg} → {f"x{new_num}"} @ field {field} and @ opcode {consumer_instr["opcode"]}")
+                        #print(f"[PHASE 3: Rename consumer due to localDep] {dep_reg} → {f"x{new_num}"} @ field {field} and @ opcode {consumer_instr["opcode"]}")
                 for field in ['memSrc1', 'memSrc2']:
                     val = consumer_instr.get(field)
                     if val and '(' in val:
@@ -450,7 +450,7 @@ def phase_three(instructions, dependencyTable, II, non_modulo):
                                 new_num = reg_num + increment
                                 offset, _, _ = val.partition('(') 
                                 consumer_instr[field] = f"{offset}(x{new_num})"
-                                print(f"[PHASE 3: Rename consumer due to localDep] {dep_reg} → {f"x{new_num}"} @ field {field} and @ opcode {consumer_instr["opcode"]}")
+                                #print(f"[PHASE 3: Rename consumer due to localDep] {dep_reg} → {f"x{new_num}"} @ field {field} and @ opcode {consumer_instr["opcode"]}")
 
     # === TREAT INTERLOOP ===
     
@@ -481,7 +481,7 @@ def phase_three(instructions, dependencyTable, II, non_modulo):
                             'dep_reg':        dep_reg
                         }
                         consumer_instr[field] = f"x{new_num}"
-                        print(f"[PHASE 3: Rename consumer due to Interloop] {dep_reg} → {f"x{new_num}"} @ field {field} and @ opcode {consumer_instr["opcode"]}")
+                        #print(f"[PHASE 3: Rename consumer due to Interloop] {dep_reg} → {f"x{new_num}"} @ field {field} and @ opcode {consumer_instr["opcode"]}")
                 for field in ['memSrc1', 'memSrc2']:
                     val = consumer_instr.get(field)
                     if val and '(' in val:
@@ -498,7 +498,7 @@ def phase_three(instructions, dependencyTable, II, non_modulo):
                                 new_num = reg_num + increment
                                 offset, _, _ = val.partition('(') 
                                 consumer_instr[field] = f"{offset}(x{new_num})"
-                                print(f"[PHASE 3: Rename consumer due to Interloop] {dep_reg} → {f"x{new_num}"} @ field {field} and @ opcode {consumer_instr["opcode"]}")
+                                #print(f"[PHASE 3: Rename consumer due to Interloop] {dep_reg} → {f"x{new_num}"} @ field {field} and @ opcode {consumer_instr["opcode"]}")
 
     return first_point_phase_four
 
@@ -525,7 +525,7 @@ def phase_two(modulo_schedule, instructions, dependencyTable):
                     original_dest = producer_instr['dest']
                     new_reg = f"x{static_reg}"
                     producer_instr['dest'] = new_reg
-                    print(f"[PHASE 2: Rename producer] {original_dest} → {new_reg} @ instr {producer_addr}")
+                    #print(f"[PHASE 2: Rename producer] {original_dest} → {new_reg} @ instr {producer_addr}")
                     static_reg += 1
                     already_renamed.add(producer_addr)
                 else:
@@ -563,8 +563,8 @@ def phase_one(instructions, II, modulo_schedule):
         instr['dest'] = new_reg
         has_been_allocated_phase1[instr['instrAddress']] = new_reg
 
-        print(f"[PHASE 1: Rename dest] {original_dest} → {new_reg} @ instr {addr}")
+        #print(f"[PHASE 1: Rename dest] {original_dest} → {new_reg} @ instr {addr}")
         rename_count += step
 
-    print(has_been_allocated_phase1)
+    #print(has_been_allocated_phase1)
     return has_been_allocated_phase1
