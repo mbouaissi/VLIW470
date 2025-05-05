@@ -24,14 +24,14 @@
         " nop",
         " nop",
         " nop",
-        "(p32) ld x32, 0(x3)",
+        "(p32) ld x32, 0(x1)",
         " nop"
     ],
     [
-        "(p32) add x35, x35, x2",
+        "(p32) add x35, x32, x2",
         " nop",
         " nop",
-        " nop",
+        "(p33) st x36, 0(x1)",
         "loop.pip 3"
     ]
 ]

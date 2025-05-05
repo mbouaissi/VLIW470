@@ -250,7 +250,13 @@ def normalize_memory_operands(instructions):
                 instr[mem_field] = f"{dec_offset}({reg_part})"
 
 
-
+def update_instr_to_bundle(schedule):
+    instr_to_bundle = {
+        instr_addr: bundle_idx
+        for bundle_idx, bundle in enumerate(schedule)
+        for instr_addr in bundle['instructions']
+    }
+    return instr_to_bundle
 
 
 

@@ -55,7 +55,7 @@ def main():
 
     # Use classic processing by default in case there isn't any loop
     if any(instr.get('opcode') == 'loop' for instr in pip_instructions):
-        pip_processing(pip_instructions, pip_dependencies, outputLoopPip)
+        pip_processing(pip_instructions, pip_dependencies, outputLoopPip, parsedInstruction)
     else:
         classic_processing(classic_instructions, classic_dependencies, outputLoopPip)
 
@@ -70,9 +70,9 @@ def classic_processing(classic_instructions, classic_dependencies, outputLoop):
         json.dump(json2, f, indent=4)
 
 
-def pip_processing(pip_instructions, pip_dependencies, outputLoopPip):
-    pip_schedule, looppip_schedule, II, modulo_schedule, non_modulo_schedule = pip_loop(pip_dependencies, pip_instructions) # Scheduling
-    pip_instructions = pip_register(pip_schedule, looppip_schedule, pip_instructions, II, pip_dependencies, non_modulo_schedule, modulo_schedule) # Register renaming
+def pip_processing(pip_instructions, pip_dependencies, outputLoopPip, parsedInstruction):
+    pip_schedule, II, modulo_schedule, non_modulo_schedule = pip_loop(pip_dependencies, pip_instructions) # Scheduling
+    pip_instructions = pip_register(pip_schedule, pip_instructions, II, pip_dependencies, non_modulo_schedule, modulo_schedule, parsedInstruction) # Register renaming
     json_schedule = pip_prep(pip_instructions, pip_schedule, II, non_modulo_schedule, modulo_schedule) # Loop prep
 
     print("===Final pip schedule===")

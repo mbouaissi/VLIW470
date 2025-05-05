@@ -1,7 +1,7 @@
 [
     [
         "mov LC, 100",
-        "mov x32, 5",
+        "mov x1, 5",
         " nop",
         " nop",
         " nop"
@@ -9,7 +9,7 @@
     [
         " nop",
         " nop",
-        "mulu x33, x32, x32",
+        "mulu x33, x1, x1",
         " nop",
         " nop"
     ],

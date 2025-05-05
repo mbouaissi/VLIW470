@@ -23,7 +23,7 @@
     [
         " nop",
         " nop",
-        "mulu x32, x32, x32",
+        "mulu x1, x32, x32",
         " nop",
         " nop"
     ]
