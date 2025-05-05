@@ -53,12 +53,35 @@ def dependency_analysis(parsed):
     detect_interloop_dependencies(parsed, dependency_table)
     detect_loop_invariant_dependencies(parsed, dependency_table)
     detect_post_loop_dependencies(parsed, dependency_table)
+    dependency_table = clean_interLoop_dependencies(dependency_table)
+    
     # Make a deep copy for each version
     latest_timestamp = clean_dependencies_latest_timestamp(copy.deepcopy(dependency_table))
     only_registers   = clean_dependencies_only_registers(copy.deepcopy(dependency_table))
     only_timestamp   = clean_dependencies_only_timestamp(copy.deepcopy(dependency_table))
 
     return (latest_timestamp, only_registers, only_timestamp)
+
+def clean_interLoop_dependencies(dep_table):
+    for entry in dep_table:
+        to_remove = set()
+        local_regs = {reg for _, reg in entry["localDependency"]}
+
+        for instr_addr, reg in entry["interloopDep"]:
+            if reg in local_regs:
+                # Check if there's a local dependency from an earlier instruction
+                for local_addr, local_reg in entry["localDependency"]:
+                    if local_reg == reg and local_addr < instr_addr:
+                        to_remove.add((instr_addr, reg))
+
+        if to_remove:
+            print("Removing from interloopDep:", to_remove)
+
+        entry["interloopDep"] = [
+            (addr, reg) for (addr, reg) in entry["interloopDep"] if reg not in local_regs
+        ]
+    return dep_table
+
 
 # Different loop iterations are considered different basic blocks (verify correct implementation!)
 def detect_local_dependencies(parsed, dependency_table):

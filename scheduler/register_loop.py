@@ -32,16 +32,12 @@ def register_loop(schedule, parsedInstructions, dependencyTable):
             register_renaming_map.setdefault(instruction["dest"], []).append((new_register, instruction["instrAddress"]))
             instruction["dest"] = new_register
             reg_rename_counter += 1
-    
     for idx, instruction in enumerate(flattened_schedule):
-       # print(f"Instruction {idx}: {instruction}")
         if instruction["opcode"] == "st":
             reg_in_mem = instruction["dest"]
             if reg_in_mem is not None:
                 if reg_in_mem not in register_renaming_map and reg_in_mem.startswith("x"):
                     new_reg_to_use = f"x{reg_rename_counter}"
-                  #  print(f"Renaming222 {reg_in_mem} to {new_reg_to_use}")
-                    #register_renaming_map.setdefault(instruction["dest"], []).append((new_reg_to_use, instruction["instrAddress"]))
                     instruction["dest"] = new_reg_to_use
                     reg_rename_counter += 1
         if instruction["opcode"] == "ld" or instruction["opcode"] == "st":
@@ -123,6 +119,10 @@ def register_loop(schedule, parsedInstructions, dependencyTable):
                 update_field("src2", entry[1])
                 update_memory_source("memSrc1", "src1", entry[1])
                 update_memory_source("memSrc2", "src2", entry[1])
+
+    
+    for i in flattened_schedule:
+        print(i)
     # Find loop bundle index
     loop_bundle_index = next(
         (i for i, bundle in enumerate(schedule_sorted) for instr in bundle if instr["opcode"] == "loop"),
@@ -138,6 +138,29 @@ def register_loop(schedule, parsedInstructions, dependencyTable):
         insert_address = instruction["instrAddress"]
         break
     
+    loop_instr_address = next((instr["instrAddress"] for instr in parsedInstructions if instr["opcode"] == "loop"), 0)
+    BB1_start = next((i for i, instr in enumerate(parsedInstructions) if instr["opcode"] == "BB1"), 0)
+    print("BB1 start", BB1_start)
+    
+    beginning_of_loop = parsedInstructions[BB1_start+1]["instrAddress"]
+    print("Beginning of loop", beginning_of_loop) 
+    print("Loop instruction address", loop_instr_address)
+    # for i in dependencyTable:
+    #     print(i)
+    # print(interloop_mov_instructions
+    # )
+    toKeep = []
+    for  entry in flattened_schedule:
+        if entry["instrAddress"] < loop_instr_address:
+            print("Entry", entry["instrAddress"])
+            if get_instruction_with_id(dependencyTable, entry["instrAddress"])["interloopDep"]:
+                for i in get_instruction_with_id(dependencyTable, entry["instrAddress"])["interloopDep"]:
+                    if beginning_of_loop <= i[0] : 
+                        toKeep.append(entry["dest"])
+                        print("Entry", i)
+    print("To keep", toKeep)
+    print("Interloop dependency map", interloop_dependency_map)
+    interloop_dependency_map = {k: v for k, v in interloop_dependency_map.items() if k in toKeep}
     for renamed_register, original in interloop_dependency_map.items():        
         # Check if renamed_register actually has a dependency
         has_dependency = True
@@ -157,7 +180,6 @@ def register_loop(schedule, parsedInstructions, dependencyTable):
     parsedInstructions.extend(interloop_mov_instructions)
 
     # Schedule the mov instructions
-    
     for mov in interloop_mov_instructions:
         delay = calculate_mov_insertion_delay(parsedInstructions, schedule_sorted, mov, loop_bundle_index)
         if schedule[loop_bundle_index]["ALU"] < unit_limit["ALU"] and delay == 0:
@@ -239,3 +261,11 @@ def is_reg_in_dependency_table(dependencyTable, field, reg):
             if str(j[1]) == str(reg):
                 return True
     return False
+
+def hasEntry(dependencyTable, field, idx):
+    # for j in get_instruction_with_id(dependencyTable, idx)[field]:
+        
+    #     if j is not None:
+    #         return True
+    # return False
+    return True
