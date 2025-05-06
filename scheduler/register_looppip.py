@@ -4,11 +4,11 @@ import re
 
 def pip_register(schedule, instructions, II, dependencyTable, non_modulo, modulo_schedule, parsedInstruction):
 
-    #print("===schedule===")
+    print("===schedule===")
     print_schedule(schedule)
-    #print("===non_modulo===")
+    print("===non_modulo===")
     print_schedule(non_modulo)
-    #print("===modulo_schedule===")
+    print("===modulo_schedule===")
     print_schedule(modulo_schedule)
 
     normalize_memory_operands(instructions)
@@ -44,26 +44,26 @@ def phase_four(schedule, modulo_schedule, instructions, dependencyTable, II, fir
     }
 
     # === TREAT DEST OF BB0 ===
-    # DOESN'T ACCOUNT FOR WHATEVER IS -St(P) (test really the stage distance) CAN ALREADY DO IT WITH NON MODULO (first iter) AND ADD THE PROLOGUE OVER
     for bundle in non_modulo:
         for instr_addr in bundle['instructions']:
             deps                 = dep_map.get(instr_addr, {})
             for producer_addr, _ in deps.get('interloopDep', []):
                 producer_instr      = instr_map[producer_addr]
                 if first_point_phase_four[instr_addr]['dep_reg'] == producer_instr['dest']:
-                    new_reg = first_point_phase_four[instr_addr]['reg_to_update_w'] + 1
+                    consumer_idx = instr_pos_in_non_modulo[instr_addr]
+                    consumer_stage = math.floor(consumer_idx/II)
+                    stage_offset = -consumer_stage
+                    new_reg = first_point_phase_four[instr_addr]['reg_to_update_w'] + 1 + stage_offset
+                    print("================STAGE OFFSET=================", 0)
                     original_dest = producer_instr['dest']
                     producer_instr['dest'] = f'x{new_reg}'
-                    #print(f"[PHASE 4a: Rename dest from loop info] {original_dest} → {f'x{new_reg}'} @ instr {producer_addr}")
+                    print(f"[PHASE 4a: Rename dest from loop info] {original_dest} → {f'x{new_reg}'} @ instr {producer_addr}")
+
                     changed_in_first_point.append(producer_instr['instrAddress'])
 
     # === LOCAL DEP IN BB0 and BB2 ===
-    # What does it mean same way as without loop.pip? Unless the destination register has already been allocated?
-
 
     free_regs = get_free_static(instructions)
-    #print("=== FREE REGS===")
-    #print(free_regs)
 
     for consumer_instr in bb0_instructions:
         instr_addr = consumer_instr['instrAddress']
